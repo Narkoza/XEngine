@@ -2,13 +2,21 @@ unit xVGA256;
 
 interface
 
-uses crt;
+type color_palette = record
+                        red: byte;
+                        green: byte;
+                        blue: byte;
+                     end;
+
+var
+     color_array : array[0..255] of color_palette;
 
 {//  N A G L O W K I  P R O C E D U R  I  F U N K C J I  //}
 {//////////////////////////////////////////////////////////}
 
 procedure xSetVGAMode;                           { Ustaw tryb VGA 320x200x256 }
 procedure xSetTxtMode;                           { Ustaw tryb tekstowy }
+procedure xLoadColorPalette;                     { Zaladuj palete kolorow VGA }
 procedure xDrawPixel(x, y : word; color : byte); { Rysuj piksel }
 procedure xDrawLineHorizontal(x_start, x_end, y: word; color : byte); { Rysuj line pozioma }
 procedure xDrawLineVertical(x, y_start, y_end : word; color : byte); { Rysuj linie pionowa }
@@ -35,6 +43,18 @@ begin
     end;
 end;
 
+procedure xLoadColorPalette;
+    var 
+        idx : byte;
+    begin
+
+    for idx := 0 to 255 do
+    begin
+        color_array[idx].red := port[$3c9];
+        color_array[idx].green := port[$3c9];
+        color_array[idx].blue := port[$3c9];
+    end;
+end;
 
 procedure xDrawPixel(x, y : word; color : byte);
 begin
