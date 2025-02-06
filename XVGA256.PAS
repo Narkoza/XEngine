@@ -20,6 +20,8 @@ procedure xLoadColorPalette;                     { Zaladuj palete kolorow VGA }
 procedure xDrawPixel(x, y : word; color : byte); { Rysuj piksel }
 procedure xDrawLineHorz(x_start, x_end, y: word; color : byte); { Rysuj line pozioma }
 procedure xDrawLineVert(x, y_start, y_end : word; color : byte); { Rysuj linie pionowa }
+procedure xDrawRectangle(x_start, y_start, x_len, y_len : word; color : byte);
+procedure xDrawSquare(x_start, y_start, len : word; color: byte);
 procedure xFillScreen(color : byte); { Wypelnij ekran kolorem }
 
 implementation
@@ -113,6 +115,19 @@ begin
         add di, 320
         loop @draw_line_loop
     end;
+end;
+
+procedure xDrawRectangle(x_start, y_start, x_len, y_len : word; color : byte);
+begin
+    xDrawLineHorz(x_start, x_start + x_len, y_start, color);
+    xDrawLineHorz(x_start, x_start + x_len, y_start + y_len, color);
+    xDrawLineVert(x_start, y_start, y_start + y_len, color);
+    xDrawLineVert(x_start + x_len, y_start, y_start + y_len, color);
+end;
+
+procedure xDrawSquare(x_start, y_start, len : word; color: byte);
+begin
+    xDrawRectangle(x_start, y_start, len, len, color);
 end;
 
 procedure xFillScreen(color : byte);
