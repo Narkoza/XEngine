@@ -18,8 +18,8 @@ procedure xSetVGAMode;                           { Ustaw tryb VGA 320x200x256 }
 procedure xSetTxtMode;                           { Ustaw tryb tekstowy }
 procedure xLoadColorPalette;                     { Zaladuj palete kolorow VGA }
 procedure xDrawPixel(x, y : word; color : byte); { Rysuj piksel }
-procedure xDrawLineHorizontal(x_start, x_end, y: word; color : byte); { Rysuj line pozioma }
-procedure xDrawLineVertical(x, y_start, y_end : word; color : byte); { Rysuj linie pionowa }
+procedure xDrawLineHorz(x_start, x_end, y: word; color : byte); { Rysuj line pozioma }
+procedure xDrawLineVert(x, y_start, y_end : word; color : byte); { Rysuj linie pionowa }
 procedure xFillScreen(color : byte); { Wypelnij ekran kolorem }
 
 implementation
@@ -72,7 +72,7 @@ begin
     end;
 end;
 
-procedure xDrawLineHorizontal(x_start, x_end, y: word; color : byte);
+procedure xDrawLineHorz(x_start, x_end, y: word; color : byte);
 begin
     asm
         mov cx, x_end
@@ -92,7 +92,7 @@ begin
     end;
 end;
 
-procedure xDrawLineVertical(x, y_start, y_end : word; color : byte);
+procedure xDrawLineVert(x, y_start, y_end : word; color : byte);
 begin
     asm
         mov cx, y_end
