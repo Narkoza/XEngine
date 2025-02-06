@@ -14,15 +14,15 @@ var
 {//  N A G L O W K I  P R O C E D U R  I  F U N K C J I  //}
 {//////////////////////////////////////////////////////////}
 
-procedure xSetVGAMode;                           { Ustaw tryb VGA 320x200x256 }
-procedure xSetTxtMode;                           { Ustaw tryb tekstowy }
-procedure xLoadColorPalette;                     { Zaladuj palete kolorow VGA }
-procedure xDrawPixel(x, y : word; color : byte); { Rysuj piksel }
-procedure xDrawLineHorz(x_start, x_end, y: word; color : byte); { Rysuj line pozioma }
-procedure xDrawLineVert(x, y_start, y_end : word; color : byte); { Rysuj linie pionowa }
-procedure xDrawRectangle(x_start, y_start, x_len, y_len : word; color : byte);
-procedure xDrawSquare(x_start, y_start, len : word; color: byte);
-procedure xFillScreen(color : byte); { Wypelnij ekran kolorem }
+procedure xSetVGAMode;                                                          { Ustaw tryb VGA 320x200x256 }
+procedure xSetTxtMode;                                                          { Ustaw tryb tekstowy }
+procedure xLoadColorPalette;                                                    { Zaladuj palete kolorow VGA }
+procedure xDrawPixel(x, y : word; color : byte);                                { Rysuj piksel }
+procedure xDrawLineHorz(x_start, x_end, y: word; color : byte);                 { Rysuj line pozioma }
+procedure xDrawLineVert(x, y_start, y_end : word; color : byte);                { Rysuj linie pionowa }
+procedure xDrawRectangle(x_start, y_start, x_len, y_len : word; color : byte);  { Rysuj prostokat }
+procedure xDrawSquare(x_start, y_start, len : word; color: byte);               { Rysuj kwadrat}
+procedure xFillScreen(color : byte);                                            { Wypelnij ekran kolorem }
 
 implementation
 
