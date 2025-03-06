@@ -22,6 +22,7 @@ procedure xDrawLineHorz(x_start, x_end, y: word; color : byte);                 
 procedure xDrawLineVert(x, y_start, y_end : word; color : byte);                { Rysuj linie pionowa }
 procedure xDrawRectangle(x_start, y_start, x_len, y_len : word; color : byte);  { Rysuj prostokat }
 procedure xDrawSquare(x_start, y_start, len : word; color: byte);               { Rysuj kwadrat}
+procedure xDrawCircle(x_start, y_start, c_radius : word; color: byte);
 procedure xFillScreen(color : byte);                                            { Wypelnij ekran kolorem }
 
 implementation
@@ -128,6 +129,69 @@ end;
 procedure xDrawSquare(x_start, y_start, len : word; color: byte);
 begin
     xDrawRectangle(x_start, y_start, len, len, color);
+end;
+
+procedure xDrawCircle(x_start, y_start, c_radius : word; color: byte);
+var
+    x, y : word
+    d : integer
+begin
+    x := 0;
+    y := c_radius;
+    d := 3 - 2 * c_radius;
+
+    while x <= y do
+    begin
+        xDrawPixel(x_start + x, y_start + y, color);
+        xDrawPixel(x_start - x, y_start + y, color);
+        xDrawPixel(x_start + x, y_start - y, color);
+        xDrawPixel(x_start - x, y_start - y, color);
+        xDrawPixel(x_start + y, y_start + x, color);
+        xDrawPixel(x_start - y, y_start + x, color);
+        xDrawPixel(x_start + y, y_start - x, color);
+        xDrawPixel(x_start - y, y_start - x, color);
+
+        if d < 0 then
+            d := d + 4 * x + 6
+        else
+        begin
+            d := d + 4 * (x - y) + 10;
+            Dec(y)
+        end;
+
+        Inc(x);
+    end;
+end;
+
+procedure xDrawCircleAsm(x_start, y_start, c_radius : word; color: byte);
+begin
+    asm
+        push bp
+        mov sp, bp
+
+        mov ax, [bp + 6] { x_start }
+        mov bx, [bp + 4] { y_start }
+        mov cx, [bp + 2] { c_radius }
+        mov dx, [bp + 8] { color }
+
+        mov si, 0 { x = 0 }
+        mov di, cx { y = c_radius }
+        mov dx, 3 { d = 3 }
+        imul dx, cx, 2 { - 2 * c_radius }
+        sub dx, 3
+
+        @draw_loop:
+        push di
+        push si
+
+        mov ax, [bp + 6] { x_start }
+        sub ax, si
+        mov bx, [bp + 4] { y_start }
+        add bx, di
+        call xDrawPixel
+
+        pop bp
+    end;
 end;
 
 procedure xFillScreen(color : byte);
