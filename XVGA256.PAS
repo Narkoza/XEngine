@@ -2,19 +2,19 @@ unit xVGA256;
 
 interface
 
-type color_palette = record
-                        red: byte;
-                        green: byte;
-                        blue: byte;
-                     end;
+type TPalette = record
+                    red: byte;
+                    green: byte;
+                    blue: byte;
+                end;
 
 var
-     color_array : array[0..255] of color_palette;
+     color_array : array[0..255] of TPalette;
 
 {//  N A G L O W K I  P R O C E D U R  I  F U N K C J I  //}
 {//////////////////////////////////////////////////////////}
 
-procedure xSetVGAMode;                                              { Ustaw tryb VGA 320x200x256 }
+procedure xSetVGAMode;                                              { Ustaw tryb VGA 320x200x256c }
 procedure xSetTxtMode;                                              { Ustaw tryb tekstowy }
 procedure xLoadColorPalette;                                        { Zaladuj palete kolorow VGA }
 procedure xDrawPixel(x, y : word; color : byte);                    { Rysuj piksel }
@@ -30,7 +30,7 @@ procedure xFillScreen(color : byte);                                { Wypelnij e
 
 implementation
 
-(*****************************************************************************)
+(***********************************************************)
 
 procedure xSetVGAMode;
 begin
@@ -307,6 +307,6 @@ begin
     end;
 end;
 
-(*****************************************************************************)
+(***********************************************************)
 
 end.
