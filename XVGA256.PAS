@@ -18,8 +18,9 @@ procedure xSetVGAMode;                                              { Ustaw tryb
 procedure xSetTxtMode;                                              { Ustaw tryb tekstowy }
 procedure xLoadColorPalette;                                        { Zaladuj palete kolorow VGA }
 procedure xDrawPixel(x, y : word; color : byte);                    { Rysuj piksel }
-procedure xDrawLineHorz(x_start, x_end, y: word; color : byte);     { Rysuj linie pozioma }
+procedure xDrawLineHorz(x_start, x_end, y : word; color : byte);     { Rysuj linie pozioma }
 procedure xDrawLineVert(x, y_start, y_end : word; color : byte);    { Rysuj linie pionowa }
+procedure xDrawLineDiag(x_start, y_start, x_end, y_end : word; color : byte);
 
 procedure xDrawRectangle(x_start, y_start, x_len, y_len : word; color : byte; fill_color : boolean);    { Rysuj prostokat }
 procedure xDrawSquare(x_start, y_start, len : word; color: byte; fill_color : boolean);                 { Rysuj kwadrat }
@@ -117,6 +118,55 @@ begin
         mov es:[di], al
         add di, 320
         loop @draw_line_loop
+    end;
+end;
+
+procedure xDrawLineDiag(x_start, y_start, x_end, y_end : word; color : byte);
+var
+    current_x, current_y : word;
+    sign : shortint;
+    tmp : word;
+    ratio : word;
+begin
+    if y_start = y_end then
+    begin
+        xDrawLineHorz(x_start, x_end, y_start, color);
+        exit;
+    end;
+
+    { Zamien wspolrzedne jesli x_start > x_end }
+    if x_start > x_end then
+    begin
+        tmp := x_end;
+        x_end := x_start;
+        x_start := tmp;
+        tmp := y_end;
+        y_end := y_start;
+        y_start := tmp;
+    end;
+
+    if y_start > y_end then
+    begin
+        sign := 1;
+        ratio := y_start - y_end;
+    end
+    else
+        sign := -1;
+        ratio := y_end - y_start;
+    end;
+
+    xDrawPixel(x_start, y_start, color);
+    xDrawPixel(x_end, y_end, color);
+
+    current_y := y_start_a;
+
+    for current_x := x_start to x_end do
+    begin
+        xDrawPixel(current_x, current_y, color);
+        if (current_x mod radio) <> 0 then
+        begin
+            current_y := current_y + sign;
+        end;
     end;
 end;
 
