@@ -32,6 +32,8 @@ procedure xJoyUpdate;    { Aktualizacja stanu joysticka }
 procedure xJoyReset;     { Resetowanie joysticka }
 procedure xJoyCalibrate; { Kalibracja joysticka }
 
+{//////////////////////////////////////////////////////////}
+
 implementation
 
 (**********************************************************)
@@ -40,6 +42,8 @@ procedure xJoyInit;
 begin
     JOY_ENABLED := TRUE; { Ustawienie flagi wlaczonego joysticka }
 end;
+
+(**********************************************************)
 
 procedure xJoyUpdate;
 begin
@@ -50,7 +54,7 @@ begin
     begin
         asm
             pushf
-            sub cx, cx              { Zerowanie rejestru CX }
+            xor cx, cx              { Zerowanie rejestru CX }
             mov dx, JOYSTICK_PORT   { Ustawienie portu joysticka }
             in  al, dx              { Odczyt z portu }
             not al
@@ -104,6 +108,8 @@ begin
     end;
 end;
 
+(**********************************************************)
+
 procedure xJoyReset;
 var
     i : Integer;
@@ -142,6 +148,8 @@ begin
         JOY_CALIBRATED := FALSE; { Ustawienie flagi kalibracji na falsz }
     end;
 end;
+
+(**********************************************************)
 
 procedure xJoyCalibrate;
 begin
