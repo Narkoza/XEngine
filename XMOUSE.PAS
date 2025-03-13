@@ -1,5 +1,11 @@
 unit xMouse;
 
+(**************************************************************)
+(** //              XENGINE Mouse Unit                    // **)
+(** //  (C) 2025 Coded by Adam Kozinski & Dominik Galoch  // **)
+(** //////////////////////////////////////////////////////// **)
+(**************************************************************)
+
 interface
 
 var
@@ -9,43 +15,51 @@ var
 {//  N A G L O W K I  P R O C E D U R  I  F U N K C J I  //}
 {//////////////////////////////////////////////////////////}
 
-function xInitMouse : boolean;                          { Sprawdzaj czy mysz jest zainstalowana }
+function xMouseInit : boolean;                          { Sprawdzaj czy mysz jest zainstalowana }
 procedure xShowMouse;                                   { Pokaz kursor myszy }
 procedure xHideMouse;                                   { Ukryj kursor myszy }
 procedure xResetMouse;                                  { Zresetuj kursor myszy }
 procedure xSetMousePosition(PosX, PosY : word);         { Ustaw pozycje kursora myszy na ekranie }
 procedure xMouseUpdate;                                 { Sprawdzaj status myszy }
 procedure xSetMouseSpeed(SpeedX, SpeedY : word);        { Ustaw predkosc myszy }
-procedure xSetMouseArea(MinX, MaxX, MinY, MaxY : word);   { Ustaw obszar ekranu dla ruchu kursora myszy }
+procedure xSetMouseArea(MinX, MaxX, MinY, MaxY : word); { Ustaw obszar ekranu dla ruchu kursora myszy }
+
+{//////////////////////////////////////////////////////////}
 
 implementation
 
-{*****************************************************************************}
+(***********************************************************)
 
-function xInitMouse : boolean;
+function xMouseInit : boolean;
 begin
     asm
-        mov ax, 0000h                   {laduj 0000h do AX}
-        int 33h                         {wywolaj przerwanie 33h}
+        mov ax, 0000h                   { Zaladuj 0000h do AX }
+        int 33h                         { Wywolaj przerwanie 33h }
         mov @result, al
     end;
 end;
 
+(***********************************************************)
+
 procedure xShowMouse;
 begin
     asm
-        mov ax, 0001h                   {laduj 0001h do AX}
-        int 33h                         {wywolaj przerwanie 33h}
+        mov ax, 0001h                   { Zaladuj 0001h do AX }
+        int 33h                         { Wywolaj przerwanie 33h }
     end;
 end;
+
+(***********************************************************)
 
 procedure xHideMouse;
 begin
     asm
-        mov ax, 0002h                   {laduj 0002h do AX}
-        int 33h                         {wywolaj przerwanie 33h}
+        mov ax, 0002h                   { Zaladuj 0002h do AX }
+        int 33h                         { Wywolaj przerwanie 33h }
     end;
 end;
+
+(***********************************************************)
 
 procedure xResetMouse;
 begin
@@ -53,16 +67,19 @@ begin
     xShowMouse;
 end;
 
+(***********************************************************)
+
 procedure xSetMousePosition(PosX, PosY : word);
 begin
     asm
-        mov ax, 0004h
-        shl PosX, 1
-        mov cx, PosX
-        mov dx, PosY
-        int 33h
+        mov ax, 0004h                   { Zaladuj kod przerwania 33h dla ustawienia pozycji kursora }
+        mov cx, PosX                    { Zaladuj wartość X do rejestru CX }
+        mov dx, PosY                    { Zaladuj wartość Y do rejestru DX }
+        int 33h                         { Wywolaj przerwanie 33h }
     end;
 end;
+
+(***********************************************************)
 
 procedure xSetMouseSpeed(SpeedX, SpeedY : word);
 begin
@@ -74,17 +91,19 @@ begin
     end;
 end;
 
+(***********************************************************)
+
 procedure xMouseUpdate;
 var
     temp : word;
     temp_pos_x, temp_pos_y : word;
 begin
     asm
-        mov ax, 0003h                   {laduj 00003h do AX}
-        int 33h                         {wywolaj przerwanie 33h}
-        mov word ptr temp, bx           {laduj BX do temp}
-        mov word ptr temp_pos_x, cx     {laduj CX do temp_pos_x}
-        mov word ptr temp_pos_y, dx     {laduj DX do temp_pos_y}
+        mov ax, 0003h                   { Zaladuj 00003h do AX }
+        int 33h                         { Wywolaj przerwanie 33h }
+        mov word ptr temp, bx           { Zaladuj BX do temp}
+        mov word ptr temp_pos_x, cx     { Zaladuj CX do temp_pos_x }
+        mov word ptr temp_pos_y, dx     { Zaladuj DX do temp_pos_y }
     end;
 
     MOUSE_X := temp_pos_x;
@@ -94,6 +113,8 @@ begin
     if ( (temp and $02) <> 0 ) then MOUSE_RIGHT := TRUE else MOUSE_RIGHT := FALSE;
     if ( (temp and $04) <> 0 ) then MOUSE_MIDDLE := TRUE else MOUSE_MIDDLE := FALSE;
 end;
+
+(***********************************************************)
 
 procedure xSetMouseArea(MinX, MaxX, MinY, MaxY : word);
 begin
@@ -111,6 +132,6 @@ begin
     end;
 end;
 
-{*****************************************************************************}
+(*****************************************************************************)
 
 end.
