@@ -1,11 +1,14 @@
 unit xVGA256;
 
+{$G+}  { Zezwol na instrukcje 286 }
+
 interface
 
 const
     SCREEN_WIDTH    = 320;
     SCREEN_HEIGHT   = 200;
     VGA_SEGMENT     = $A000;
+    MAX_BUFFER_SIZE = SCREEN_WIDTH * SCREEN_HEIGHT;
 
 type
     TImageBuffer = array[0..63999] of byte;
@@ -49,10 +52,11 @@ type
                     blue    : byte;
                 end;
 
-    VGA_PALETTE = array[0..255] of TPalette;
+    VGAPalette = array[0..255] of TPalette;
 
 var
-    BMP_PALETTE : array[0..255] of TPaletteBMP;
+    bmp_palette : array[0..255] of TPaletteBMP;
+    buffer_ptr  : pointer;
 
 {//  N A G L O W K I  P R O C E D U R  I  F U N K C J I  //}
 {//////////////////////////////////////////////////////////}
@@ -60,9 +64,11 @@ var
 procedure xSetVGAMode;                                                                      { Ustaw tryb 13h, 320x200x256c }
 procedure xSetTxtMode;                                                                               { Ustaw tryb tekstowy }
 procedure xSetColor(color_nr : byte; r, g, b : byte);                                               { Ustaw wzorzec koloru }
-procedure xGetVGAPalette(var pal : VGA_PALETTE);                                                      { Pobierz palete VGA }
+procedure xGetPaletteVGA(var pal : VGAPalette);                                                       { Pobierz palete VGA }
+procedure xSetPaletteVGA(pal : VGAPalette);                                                            { Zapisz palete VGA }
+procedure xLoadPaletteBMP(filename : string);                                                         { Pobierz palete BMP }
 procedure xGetColor(color_nr : byte; var color : TPalette);                                       { Pobierz wzorzec koloru }
-procedure xLoadBMP(var image : TImage; filename : string);                                                { Laduj plik BMP }
+procedure xLoadBMP(var image : TImage; filename : string);                                               { Wczytaj bitmape }
 procedure xDrawBMP(var image : TImage);                                                                    { Rysuj bitmape }
 procedure xDrawPixel(x, y : word; color : byte);                                                            { Rysuj piksel }
 procedure xDrawLineHorz(x_start, x_end, y : word; color : byte);                                     { Rysuj linie pozioma }
@@ -70,9 +76,14 @@ procedure xDrawLineVert(x, y_start, y_end : word; color : byte);                
 procedure xDrawLineDiag(x_start, y_start, x_end, y_end : word; color : byte);                         { Rysuj linie ukosna }
 procedure xDrawRectangle(x_start, y_start, x_len, y_len : word; color : byte; fill_color : boolean);     { Rysuj prostokat }
 procedure xDrawSquare(x, y, len : word; color: byte; fill_color : boolean);                                { Rysuj kwadrat }
-procedure xDrawCircle(x_start, y_start, c_radius : word; color: byte; fill_color : boolean);                  { Rysuj kolo }
+procedure xDrawCircle(x_start, y_start, radius : word; color: byte; fill_color : boolean);                    { Rysuj kolo }
 {procedure xDrawCircleAsm(x_start, y_start, c_radius : word; color: byte);}
 procedure xFillScreen(color : byte);                                                              { Wypelnij ekran kolorem }
+procedure xCreateBuffer(var buffer_ptr : pointer);                                   { Zaalokuj pamiec dla drugiego bufora }
+procedure xFreeBuffer(var buffer_ptr : pointer);                                          { Zwolnij pamiec drugiego bufora }
+procedure xCopyBuffer(target, source : pointer);                                          { Kopiuj bufor ze zrodla do celu }
+procedure xFillBuffer(buffer_ptr : pointer; color : byte);                                        { Wypelnij bufor kolorem }
+procedure xWaitForVertRetrace;                                                              { Czekaj na powrot pionowy CRT }
 
 {//////////////////////////////////////////////////////////}
 
@@ -113,7 +124,7 @@ end;
 
 (***********************************************************)
 
-procedure xGetVGAPalette(var pal : VGA_PALETTE);
+procedure xGetPaletteVGA(var pal : VGAPalette);
 var
     idx : byte;
 begin
@@ -128,6 +139,55 @@ begin
         pal[idx].green  := port[$3c9];
         pal[idx].blue   := port[$3c9];
     end;
+end;
+
+(***********************************************************)
+
+procedure xSetPaletteVGA(pal : VGAPalette);
+var
+    idx : byte;
+begin
+    { Chcemy zapisac cala palete kolorow, dlatego tez rozpoczynamy
+    jej czytanie od pierwszego wzorca koloru }
+    port[$3c8] := 0;
+
+    { Zapis palety kolorow }
+    for idx := 0 to 255 do
+    begin
+        pal[idx].red    := port[$3c9];
+        pal[idx].green  := port[$3c9];
+        pal[idx].blue   := port[$3c9];
+    end;
+end;
+
+(***********************************************************)
+
+procedure xLoadPaletteBMP(filename : string);
+var
+    fd           : file;
+    counter      : word;
+    palette_size : word;
+begin
+    assign(fd, filename);
+    reset(fd, 1);
+
+    seek(fd, sizeof(THandleBMP));
+
+    palette_size := sizeof(bmp_palette);
+
+    blockread(fd, bmp_palette, palette_size);
+
+    port[$3c8] := 0;
+
+    { Odczytanie palety kolorow }
+    for counter := 0 to 255 do
+    begin
+        port[$3c9] := bmp_palette[counter].red shr 2;
+        port[$3c9] := bmp_palette[counter].green shr 2;
+        port[$3c9] := bmp_palette[counter].blue shr 2;
+    end;
+
+    close(fd);
 end;
 
 (***********************************************************)
@@ -151,7 +211,6 @@ var
     img_meta     : THandleBMP;
     counter      : word;
     current_row  : word;
-    palette_size : word;
 begin
 
     assign(fd, filename);
@@ -164,22 +223,6 @@ begin
     begin
         close(fd);
         exit;
-    end;
-
-    seek(fd, sizeof(THandleBMP));
-
-    palette_size := sizeof(BMP_PALETTE);
-
-    blockread(fd, BMP_PALETTE, palette_size);
-
-    port[$3c8] := 0;
-
-    { Odczytanie palety kolorow }
-    for counter := 0 to 255 do
-    begin
-        port[$3c9] := BMP_PALETTE[counter].red shr 2;
-        port[$3c9] := BMP_PALETTE[counter].green shr 2;
-        port[$3c9] := BMP_PALETTE[counter].blue shr 2;
     end;
 
     seek(fd,1078);
@@ -365,14 +408,14 @@ end;
 
 (***********************************************************)
 
-procedure xDrawCircle(x_start, y_start, c_radius : word; color: byte; fill_color : boolean);
+procedure xDrawCircle(x_start, y_start, radius : word; color: byte; fill_color : boolean);
 var
     x, y : word;
     d : integer;
 begin
     x := 0;
-    y := c_radius;
-    d := 3 - 2 * c_radius;
+    y := radius;
+    d := 3 - 2 * radius;
 
     while x <= y do
     begin
@@ -406,9 +449,9 @@ begin
 
     if fill_color then
     begin
-        for y := 0 to c_radius do
+        for y := 0 to radius do
         begin
-            x := Round(Sqrt(c_radius * c_radius - y * y));
+            x := Round(Sqrt(radius * radius - y * y));
             xDrawLineHorz(x_start - x, x_start + x, y_start + y, color);
             xDrawLineHorz(x_start - x, x_start + x, y_start - y, color);
         end;
@@ -528,6 +571,74 @@ begin
         mov al, ah
         cld
         rep stosw
+    end;
+end;
+
+(***********************************************************)
+
+procedure xCreateBuffer(var buffer_ptr : pointer);
+var
+    _free_mem : longint;
+begin
+    { Sprawdzamy czy system posiada wystarczajaco duzo wolnej pamieci }
+    _free_mem := maxavail;
+    if(_free_mem < MAX_BUFFER_SIZE) then exit;
+
+    getmem(buffer_ptr, MAX_BUFFER_SIZE);
+end;
+
+(***********************************************************)
+
+procedure xFreeBuffer(var buffer_ptr : pointer);
+begin
+    freemem(buffer_ptr, MAX_BUFFER_SIZE);
+end;
+
+(***********************************************************)
+
+procedure xCopyBuffer(target, source : pointer);
+begin
+    asm
+        push ds
+        lds si, source
+        les di, target
+        mov cx, 32000
+        cld
+        rep movsw
+        pop ds
+    end;
+end;
+
+(***********************************************************)
+
+procedure xFillBuffer(buffer_ptr : pointer; color : byte);
+begin
+    asm
+        les di, buffer_ptr
+        mov cx, 32000
+        mov ah, color
+        mov al, ah
+        cld
+        rep stosw
+    end;
+end;
+
+(***********************************************************)
+
+procedure xWaitForVertRetrace;
+begin
+    asm
+        mov dx, 3dah
+
+        @inProgress:
+        in  al, dx
+        test al, 00001000b
+        jnz @inProgress
+
+        @noRetrace:
+        in al, dx
+        test al, 00001000b
+        jz @noRetrace
     end;
 end;
 
