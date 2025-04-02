@@ -73,8 +73,8 @@ procedure xSetMousePosition(PosX, PosY : word);
 begin
     asm
         mov ax, 0004h                   { Zaladuj kod przerwania 33h dla ustawienia pozycji kursora }
-        mov cx, PosX                    { Zaladuj wartość X do rejestru CX }
-        mov dx, PosY                    { Zaladuj wartość Y do rejestru DX }
+        mov cx, PosX                    { Zaladuj wartosc X do rejestru CX }
+        mov dx, PosY                    { Zaladuj wartosc Y do rejestru DX }
         int 33h                         { Wywolaj przerwanie 33h }
     end;
 end;
@@ -132,6 +132,6 @@ begin
     end;
 end;
 
-(*****************************************************************************)
+(***********************************************************)
 
 end.
