@@ -12,6 +12,7 @@ interface
 {//////////////////////////////////////////////////////////}
 
 function xFileExists(filename : string) : boolean; { Sprawdz czy plik istnieje }
+function xFileRead(filename : string) : integer; { Odczytaj zawartosc pliku }
 
 {//////////////////////////////////////////////////////////}
 
@@ -33,5 +34,31 @@ begin
 end;
 
 (***********************************************************)
+
+function xFileRead(filename : string) : integer;
+var
+    buffer : array of byte;
+    binary_file: file of byte;
+    file_size, i: integer
+begin
+    AssignFile(binary_file, filename);
+    Reset(binary_file);
+    if EOF(binary_file) then
+    begin
+        Result := 0;
+        Exit;
+    end;
+
+    file_size := FileSize(binary_file);
+    SetLength(buffer, file_size);
+
+    for i := 0 to file_size - 1 do
+    begin
+        Read(binary_file, buffer[i]);
+    end;
+
+    CloseFile(binFile);
+    Result := FileSize;
+end;
 
 end.
