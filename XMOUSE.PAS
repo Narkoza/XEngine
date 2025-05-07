@@ -8,21 +8,25 @@ unit xMouse;
 
 interface
 
+type
+    TCursor = array[1..32] of word; { Typ dla maski kursora graficznego }
+
 var
-   MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT : boolean;
-   MOUSE_X, MOUSE_Y : word;
+    MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT : boolean;
+    MOUSE_X, MOUSE_Y : word;
 
 {//  N A G L O W K I  P R O C E D U R  I  F U N K C J I  //}
 {//////////////////////////////////////////////////////////}
 
-function xMouseInit : boolean;                          { Sprawdzaj czy mysz jest zainstalowana }
-procedure xShowMouse;                                   { Pokaz kursor myszy }
-procedure xHideMouse;                                   { Ukryj kursor myszy }
-procedure xResetMouse;                                  { Zresetuj kursor myszy }
-procedure xSetMousePosition(PosX, PosY : word);         { Ustaw pozycje kursora myszy na ekranie }
-procedure xMouseUpdate;                                 { Sprawdzaj status myszy }
-procedure xSetMouseSpeed(SpeedX, SpeedY : word);        { Ustaw predkosc myszy }
-procedure xSetMouseArea(MinX, MaxX, MinY, MaxY : word); { Ustaw obszar ekranu dla ruchu kursora myszy }
+function xMouseInit : boolean;                                  { Sprawdzaj czy mysz jest zainstalowana }
+procedure xShowMouse;                                           { Pokaz kursor myszy }
+procedure xHideMouse;                                           { Ukryj kursor myszy }
+procedure xResetMouse;                                          { Zresetuj kursor myszy }
+procedure xSetMousePosition(PosX, PosY : word);                 { Ustaw pozycje kursora myszy na ekranie }
+procedure xMouseUpdate;                                         { Sprawdzaj status myszy }
+procedure xSetMouseSpeed(SpeedX, SpeedY : word);                { Ustaw predkosc myszy }
+procedure xSetMouseArea(MinX, MaxX, MinY, MaxY : word);         { Ustaw obszar ekranu dla ruchu kursora myszy }
+procedure xSetMouseCursor(HotX, HotY : word; Cursor : TCursor); { Ustaw maske kursora graficznego myszy }
 
 {//////////////////////////////////////////////////////////}
 
@@ -128,6 +132,24 @@ begin
         mov ax, 0008h
         mov cx, MinY
         mov dx, MaxY
+        int 33h
+    end;
+end;
+
+(***********************************************************)
+
+procedure xSetMouseCursor(HotX, HotY : word; Cursor : TCursor);
+var
+    c_seg, c_ofs : word;
+begin
+    c_seg := Seg(Cursor);
+    c_ofs := Ofs(Cursor);
+    asm
+        mov ax, 0009h
+        mov bx, HotX
+        mov cx, HotY
+        mov es, c_seg
+        mov dx, c_ofs
         int 33h
     end;
 end;
