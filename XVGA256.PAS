@@ -90,6 +90,7 @@ procedure xFreeImage(var image : TImage);                                       
 procedure xSaveBitmap(filename : string);                                                                  { Zapisz bitmape }
 procedure xDrawBitmap(buffer_ptr : pointer; x, y : word; image : TImage; transparent : boolean);            { Rysuj bitmape }
 procedure xScaleBitmap(original : TImage; var scaled : TImage; new_width, new_height : word);              { Skaluj bitmape }
+procedure xRotateBitmap(original : TImage; var rotated : TImage; angle : real);                             { Obroc bitmape }
 procedure xDrawPixel(buffer_ptr : pointer; x, y : word; color : byte);                                       { Rysuj piksel }
 procedure xDrawLineHorz(buffer_ptr : pointer; x_start, x_end, y : word; color : byte);                { Rysuj linie pozioma }
 procedure xDrawLineVert(buffer_ptr : pointer; x, y_start, y_end : word; color : byte);                { Rysuj linie pionowa }
@@ -419,6 +420,53 @@ begin
                 scaled.img_ptr^[y * new_width + x] := original.img_ptr^[src_y * original.width + src_x]
             else
                 scaled.img_ptr^[y * new_width + x] := 0;
+        end;
+end;
+
+(***********************************************************)
+
+procedure xRotateBitmap(original : TImage; var rotated : TImage; angle : real);
+var
+    cos_theta, sin_theta    : real;
+    new_width, new_height   : word;
+    x, y                    : integer;
+    cx, cy, new_cx, new_cy  : real;
+    i, j                    : word;
+begin
+    { Konwersja kata na radiany }
+    angle := angle * pi / 180.0;
+    cos_theta := cos(angle);
+    sin_theta := sin(angle);
+
+    { Obliczenie nowych wymiarow bitmapy }
+    new_width := round(abs(original.width * cos_theta) + abs(original.height * sin_theta));
+    new_height := round(abs(original.width * sin_theta) + abs(original.height * cos_theta));
+
+    { Alokacja pamieci dla nowej bitmapy }
+    rotated.width := new_width;
+    rotated.height := new_height;
+    rotated.size := new_width * new_height;
+    getmem(rotated.img_ptr, rotated.size);
+
+    { Obliczenie srodkow bitmap }
+    cx := original.width / 2.0;
+    cy := original.height / 2.0;
+    new_cx := new_width / 2.0;
+    new_cy := new_height / 2.0;
+
+    { Wypelnienie nowej bitmapy pikselami }
+    for j := 0 to new_height - 1 do
+        for i := 0 to new_width - 1 do
+        begin
+            { Obliczenie wspolrzednych w oryginalnej bitmapie }
+            x := round((i - new_cx) * cos_theta + (j - new_cy) * sin_theta + cx);
+            y := round(-(i - new_cx) * sin_theta + (j - new_cy) * cos_theta + cy);
+
+            { Sprawdzenie, czy piksel miesci sie w granicach oryginalnej bitmapy }
+            if (x >= 0) and (x < original.width) and (y >= 0) and (y < original.height) then
+                rotated.img_ptr^[j * new_width + i] := original.img_ptr^[y * original.width + x]
+            else
+                rotated.img_ptr^[j * new_width + i] := 0; { Kolor tla }
         end;
 end;
 
