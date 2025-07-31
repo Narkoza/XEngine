@@ -8,12 +8,21 @@ unit xSound;
 
 interface
 
-uses crt, xtimer;
+uses crt, xtimer, dos;
 
 type
     TNote = (C, Cis, D, Dis, E, F, Fis, G, Gis, A, Ais, B);
 
 const
+    { GROK4 TEST }
+    DMA_CHANNEL = 1;             { 8-bit DMA channel }
+    DMA_MASK_PORT = $0A;         { DMA mask port }
+    DMA_MODE_PORT = $0B;         { DMA mode port }
+    DMA_CLEAR_PTR_PORT = $0C;    { DMA flip-flop clear port }
+    DMA_START_ADDR_PORT = $02;   { DMA address port for ch1 }
+    DMA_COUNT_PORT = $03;        { DMA count port for ch1 }
+    DMA_PAGE_PORT = $83;         { DMA page port for ch1 }
+
     { DSP all ports }
     DSP_MIXER_PORT        = $224;
     DSP_MIXER_DATA_PORT   = $225;
@@ -53,21 +62,27 @@ const
         493.88   { B4 }
     );
 
-{//  N A G L O W K I  P R O C E D U R  I  F U N K C J I  //}
-{//////////////////////////////////////////////////////////}
+var
+    EightBitDMAInterrupt: boolean;    { Flag for 8-bit DMA or SB-MIDI interrupt }
+    SixteenBitDMAInterrupt: boolean;  { Flag for 16-bit DMA interrupt }
+    MPU401Interrupt: boolean;         { Flag for MPU-401 interrupt }
 
-procedure xPlayNote(note : TNote; octave : integer; time : word);   { Graj dzwiek z PC Speakera }
-procedure xPlayPause(time : word);                                  { Graj pauze }
-procedure xWaitForBit7(port_num : byte; rvalue : word);             { Czekaj az bit 7 portu bedzie mial wartosc rvalue }
-procedure xWaitForBit7UntilSet(port_num : word);                    { Czekaj az bit 7 portu zostanie ustawiony }
-procedure xWaitForBit7UntilUnset(port_num : word);                  { Czekaj az bit 7 portu zostanie wyzerowany }
-procedure xDSPWrite(data : word);                                   { Zapisz dane do DSP }
-function xDSPRead : word;                                           { Odczytaj dane z DSP }
-procedure xSB16Init;                                                { Inicjalizacja Sound Blaster 16 }
-
-{//////////////////////////////////////////////////////////}
+{ Procedures and Functions }
+procedure xPlayNote(note : TNote; octave : integer; time : word);
+procedure xPlayPause(time : word);
+procedure xWaitForBit7(port_num : byte; rvalue : word);
+procedure xWaitForBit7UntilSet(port_num : word);
+procedure xWaitForBit7UntilUnset(port_num : word);
+procedure xDSPWrite(data : word);
+function xDSPRead : word;
+procedure xSB16Init;
+procedure xInstallISR;    { Install the ISR for DSP interrupts }
+procedure xUninstallISR;  { Uninstall the ISR and restore original vector }
 
 implementation
+
+var
+    OldIntVec: pointer;  { To store the original interrupt vector }
 
 (***********************************************************)
 
@@ -140,8 +155,12 @@ end;
 (***********************************************************)
 
 procedure xWaitForBit7(port_num : byte; rvalue : word);
+var
+  i: longint;
 begin
-    while (port[port_num] and $80 = rvalue) do ;
+  i := 0;
+  while (i < 100000) and ((port[port_num] and $80) = rvalue) do Inc(i);
+  if i = 100000 then writeln('Timeout waiting for bit 7 on port $', port_num);
 end;
 
 (***********************************************************)
@@ -170,31 +189,100 @@ end;
 
 function xDSPRead : word;
 begin
-    xWaitForBit7UntilUnset(DSP_READ);
-    xDSPRead := port[DSP_READ];
+  xWaitForBit7UntilUnset(DSP_READ_STATUS_8);  { Poll status port $22E until bit7=1 (data ready) }
+  xDSPRead := port[DSP_READ];
 end;
 
 (***********************************************************)
 
 procedure xSB16Init;
+var
+  i: integer;  { For timeout loop }
 begin
-    port[DSP_RESET] := 1;
-    delay(3);
+  port[DSP_RESET] := 1;
 
-    { wait for status 'ready' }
-    while (port[DSP_READ_STATUS_8] and $80 = $80) do ;
+  { Wait at least 3 microseconds; use a small assembly loop for precision, as delay() is in ms }
+  asm
+    mov cx, 10  { Adjust as needed for ~3us on your CPU speed; this is approximate }
+  @loop:
+    nop
+    loop @loop
+  end;
 
-    port[DSP_RESET] := 0;
+  port[DSP_RESET] := 0;
 
-    if (port[DSP_READ] <> $AA) then
-    begin
-        writeln('Sound Blaster not detected or IO error occurred.');
-        exit;
-    end
-    else
-    begin
-        writeln('Sound Blaster detected. Continuing...');
-    end;
+  { Poll for data ready (bit 7 == 1 on $22E), with a timeout to avoid infinite loop }
+  i := 0;
+  while (i < 1000) and ((port[DSP_READ_STATUS_8] and $80) = 0) do  { Wait until bit 7 == 1 }
+  begin
+    Inc(i);  { Timeout after ~1000 iterations; adjust based on system speed }
+  end;
+
+  if (port[DSP_READ_STATUS_8] and $80 = 0) then
+  begin
+    writeln('Timeout waiting for DSP ready after reset.');
+  end;
+
+  if (port[DSP_READ] <> $AA) then
+  begin
+    writeln('Sound Blaster not detected or IO error occurred.');
+  end
+  else
+  begin
+    writeln('Sound Blaster detected. Continuing...');
+  end;
+end;
+
+(***********************************************************)
+
+procedure MyISR; interrupt;
+var
+    status: byte;
+    dummy: byte;
+begin
+    writeln('interrupt fired');
+    repeat
+        port[DSP_MIXER_PORT] := $82;          { Select mixer register 82h }
+        status := port[DSP_MIXER_DATA_PORT];  { Read interrupt status }
+
+        if (status and 1) <> 0 then
+        begin
+            dummy := port[DSP_READ_STATUS_8]; { Acknowledge 8-bit DMA/SB-MIDI }
+            EightBitDMAInterrupt := true;
+        end;
+
+        if (status and 2) <> 0 then
+        begin
+            dummy := port[DSP_READ_STATUS_16]; { Acknowledge 16-bit DMA }
+            SixteenBitDMAInterrupt := true;
+        end;
+
+        if (status and 4) <> 0 then
+        begin
+            dummy := port[$330];              { Acknowledge MPU-401 at 330h }
+            MPU401Interrupt := true;
+        end;
+    until status = 0;                         { Loop until all interrupts cleared }
+
+    port[$20] := $20;                         { Send EOI to master PIC }
+end;
+
+(***********************************************************)
+
+procedure xInstallISR;
+begin
+    GetIntVec($0F, OldIntVec);    { Save original vector for IRQ 7 }
+    SetIntVec($0F, @MyISR);       { Set ISR for interrupt vector 0Fh }
+    EightBitDMAInterrupt := false;
+    SixteenBitDMAInterrupt := false;
+    MPU401Interrupt := false;
+end;
+
+(***********************************************************)
+
+procedure xUninstallISR;
+begin
+    SetIntVec($0F, OldIntVec);    { Restore original interrupt vector }
 end;
 
 (***********************************************************)
