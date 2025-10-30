@@ -8,10 +8,10 @@ unit xSound;
 
 interface
 
-uses crt, xtimer, dos;
+uses crt, xtimer, dos, xmem;
 
 type
-    TNote = (C, Cis, D, Dis, E, F, Fis, G, Gis, A, Ais, B);
+    TNote = (C, Cis, D, Dis, E, F, Fis, G, Gis, A, Ais, B); { PC SPEAKER NOTES }
 
 const
     { GROK4 TEST }
@@ -47,6 +47,7 @@ const
     DSP_MASTER_VOLUME     = $22;
     DSP_SET_IRQ           = $80;
 
+    { PC SPEAKER NOTE FREQUENCIES }
     NOTE_FREQUENCIES : array[TNote] of real = (
         261.63,  { C4 }
         277.18,  { C#4 }
@@ -63,13 +64,22 @@ const
     );
 
 var
+    OldIntVec: pointer;               { To store the original interrupt vector }
+    sound_buff_ptr: pointer;          { Sound buffer }
     EightBitDMAInterrupt: boolean;    { Flag for 8-bit DMA or SB-MIDI interrupt }
     SixteenBitDMAInterrupt: boolean;  { Flag for 16-bit DMA interrupt }
     MPU401Interrupt: boolean;         { Flag for MPU-401 interrupt }
 
-{ Procedures and Functions }
-procedure xPlayNote(note : TNote; octave : integer; time : word);
-procedure xPlayPause(time : word);
+    { PC SPEAKER VARIABLES }
+    isPlaying: boolean;
+    remainingTicks: word;
+    currentFreq: word;
+
+{//  N A G L O W K I  P R O C E D U R  I  F U N K C J I  //}
+{//////////////////////////////////////////////////////////}
+
+procedure xSoundInit;
+procedure xPlaySine(frequency: word; duration: integer);
 procedure xWaitForBit7(port_num : byte; rvalue : word);
 procedure xWaitForBit7UntilSet(port_num : word);
 procedure xWaitForBit7UntilUnset(port_num : word);
@@ -78,11 +88,65 @@ function xDSPRead : word;
 procedure xSB16Init;
 procedure xInstallISR;    { Install the ISR for DSP interrupts }
 procedure xUninstallISR;  { Uninstall the ISR and restore original vector }
+procedure xFreeSound;
+
+{ PC SPEAKER PROCEDURES }
+procedure xPlayNote(note: TNote; octave: integer; duration: word);
+procedure xUpdateSound;
+procedure xPlayPause(time : word);
+
+{//////////////////////////////////////////////////////////}
 
 implementation
 
+(***********************************************************)
+
+{ TODO: multiple allocations for sound data }
+procedure xPlaySine(frequency: word; duration: integer);
 var
-    OldIntVec: pointer;  { To store the original interrupt vector }
+    time_const: byte;
+    physical_addr: longint;
+    addr_low, addr_high, page: byte;
+    count_low, count_high: byte;
+    i: integer;  { Loop variable for filling the buffer }
+begin
+    xCreateBuffer(sound_buff_ptr);
+    { Step 1: Fill the buffer with a test sound (e.g., a simple 440 Hz sine wave) }
+    for i := 0 to duration do
+        mem[seg(sound_buff_ptr^): ofs(sound_buff_ptr^) + i] := Round(127 * Sin(2 * Pi * frequency * i / 8000)) + 128;
+
+    { Calculate physical DMA address of the buffer }
+    physical_addr := LongInt(seg(sound_buff_ptr^)) shl 4 + ofs(sound_buff_ptr^);
+    addr_low := Lo(physical_addr);
+    addr_high := Hi(physical_addr);
+    page := physical_addr shr 16;
+
+    { Step 2: Program DMA controller for 8-bit single-cycle playback (mem to peripheral) }
+    { TODO: Sprawdzic w dokumentacji czy potrzebne }
+    Port[DMA_MASK_PORT] := DMA_CHANNEL or 4;          { Mask channel (bit 2=1) }
+    Port[DMA_CLEAR_PTR_PORT] := 0;                    { Clear flip-flop }
+    Port[DMA_START_ADDR_PORT] := addr_low;            { Set start address low byte }
+    Port[DMA_START_ADDR_PORT] := addr_high;           { Set start address high byte }
+    Port[DMA_PAGE_PORT] := page;                      { Set page }
+    count_low := Lo(duration); count_high := Hi(duration);    { Count = length-1 }
+    Port[DMA_COUNT_PORT] := count_low;
+    Port[DMA_COUNT_PORT] := count_high;
+    Port[DMA_MODE_PORT] := $48 + DMA_CHANNEL;         { Mode: single-cycle, increment, mem-to-IO (playback) }
+    Port[DMA_MASK_PORT] := DMA_CHANNEL;               { Unmask channel }
+
+    { Step 3: Set DSP time constant (~8000 Hz sampling rate) }
+    time_const := 256 - (1000000 div 8000);           { = 131 or $83 }
+    xDSPWrite($40);
+    xDSPWrite(time_const);
+
+    { Step 4: Program DSP for 8-bit single-cycle DMA output (command $14) }
+    xDSPWrite($14);                                   { Start 8-bit DMA output }
+    xDSPWrite(Lo(duration));                          { Length low  }
+    xDSPWrite(Hi(duration));                          { Length high }
+
+    { The DSP will now request DMA, transfer 4000 bytes, complete the block, and fire an 8-bit interrupt }
+    xFreeBuffer(sound_buff_ptr);
+end;
 
 (***********************************************************)
 
@@ -128,20 +192,39 @@ end;
 
 (***********************************************************)
 
-procedure xPlayNote(note : TNote; octave : integer; time : word);
+procedure xPlayNote(note: TNote; octave: integer; duration: word);
 var
-    frequency       : real;
-    int_frequency   : word;
-    octave_shift    : integer;
+    frequency: real;
+    octave_shift: integer;
 begin
-    octave_shift    := octave - 4;
-    frequency       := NOTE_FREQUENCIES[note] * Exp(octave_shift * Ln(2));
-    int_frequency   := Round(frequency);
+    if duration = 0 then
+    begin
+        isPlaying := false;
+        xSpeakerOff;
+        Exit;
+    end;
 
-    xSetCounter(int_frequency);
+    octave_shift := octave - 4;
+    frequency := NOTE_FREQUENCIES[note] * Exp(octave_shift * Ln(2));
+    currentFreq := Round(frequency);
+
+    xSetCounter(currentFreq);
     xSpeakerOn;
-    xWait(time);
-    xSpeakerOff;
+    remainingTicks := duration;
+    isPlaying := true;
+end;
+
+(***********************************************************)
+
+procedure xUpdateSound;
+begin
+    if not isPlaying then Exit;
+    Dec(remainingTicks);
+    if remainingTicks = 0 then
+    begin
+        xSpeakerOff;
+        isPlaying := false;
+    end;
 end;
 
 (***********************************************************)
@@ -283,6 +366,21 @@ end;
 procedure xUninstallISR;
 begin
     SetIntVec($0F, OldIntVec);    { Restore original interrupt vector }
+end;
+
+(***********************************************************)
+
+procedure xSoundInit;
+begin
+    xSB16Init;
+    xInstallISR;
+end;
+
+(***********************************************************)
+
+procedure xFreeSound;
+begin
+    xUninstallISR;
 end;
 
 (***********************************************************)
