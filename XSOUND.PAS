@@ -8,7 +8,7 @@ unit xSound;
 
 interface
 
-uses crt, xtimer, dos, xmem;
+uses crt, xtimer, dos, xmem. xfiles;
 
 type
     TNote = (C, Cis, D, Dis, E, F, Fis, G, Gis, A, Ais, B); { PC SPEAKER NOTES }
@@ -79,6 +79,7 @@ var
 {//////////////////////////////////////////////////////////}
 
 procedure xSoundInit;
+procedure xReadSoundFile(const filename : string);
 procedure xPlaySine(frequency: word; duration: integer);
 procedure xWaitForBit7(port_num : byte; rvalue : word);
 procedure xWaitForBit7UntilSet(port_num : word);
@@ -100,6 +101,20 @@ procedure xPlayPause(time : word);
 implementation
 
 (***********************************************************)
+
+procedure xReadSoundFile(const filename : string);
+var
+    file_size: word;
+    data: array;
+begin
+    { TODO: Read sound data before playback }
+    if not xFileExists(filename) then
+        writeln('Error reading the specified sound file');
+        Exit;
+    end;
+
+    xLoadFile(filename, data, FileSize(filename));
+end;
 
 { TODO: multiple allocations for sound data }
 procedure xPlaySine(frequency: word; duration: integer);
@@ -318,10 +333,12 @@ end;
 
 (***********************************************************)
 
-procedure MyISR; interrupt;
+procedure SoundISR; interrupt;
 var
     status: byte;
     dummy: byte;
+    chunk: word;
+    remaining_samples: word;
 begin
     writeln('interrupt fired');
     repeat
@@ -347,6 +364,30 @@ begin
         end;
     until status = 0;                         { Loop until all interrupts cleared }
 
+    if remaining_samples <= 0 then
+    begin
+        goto irq_exit;
+    end;
+
+    { TODO: Read actual sound data, get rid of generating test samples for sine tune }
+    if remaining_samples > MAX_BUFFER_SIZE then chunk := MAX_BUFFER_SIZE
+    else chunk := remaining_samples;
+
+    { Generate samples for sine tune, this should be replaced with actual sound data from file }
+    { TODO: Make use of XFILES.PAS }
+    for i := 0 to chunk-1 do
+        mem[seg(sound_buff_ptr^):ofs(sound_buff_ptr^) + i] :=
+            Round(127 * Sin(2*Pi*dma_frequency*(i)/8000)) + 128;
+
+    physical_addr := LongInt(seg(sound_buff_ptr^)) shl 4 + ofs(sound_buff_ptr^);
+    addr_low := Lo(physical_addr);
+    addr_high := Hi(physical_addr);
+    page := physical_addr shr 16;
+
+    remaining_samples := remaining_samples - chunk;
+
+    irq_exit:
+
     port[$20] := $20;                         { Send EOI to master PIC }
 end;
 
@@ -355,7 +396,7 @@ end;
 procedure xInstallISR;
 begin
     GetIntVec($0F, OldIntVec);    { Save original vector for IRQ 7 }
-    SetIntVec($0F, @MyISR);       { Set ISR for interrupt vector 0Fh }
+    SetIntVec($0F, @SoundISR);    { Set ISR for interrupt vector 0Fh }
     EightBitDMAInterrupt := false;
     SixteenBitDMAInterrupt := false;
     MPU401Interrupt := false;
