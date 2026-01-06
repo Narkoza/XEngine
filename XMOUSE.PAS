@@ -99,23 +99,23 @@ end;
 
 procedure xMouseUpdate;
 var
-    temp : word;
-    temp_pos_x, temp_pos_y : word;
+  temp : word;
+  temp_pos_x, temp_pos_y : word;
 begin
-    asm
-        mov ax, 0003h                   { Zaladuj 00003h do AX }
-        int 33h                         { Wywolaj przerwanie 33h }
-        mov word ptr temp, bx           { Zaladuj BX do temp}
-        mov word ptr temp_pos_x, cx     { Zaladuj CX do temp_pos_x }
-        mov word ptr temp_pos_y, dx     { Zaladuj DX do temp_pos_y }
-    end;
+  asm
+      mov ax, 0003h                   { Zaladuj 00003h do AX }
+      int 33h                         { Wywolaj przerwanie 33h }
+      mov word ptr temp, bx           { Zaladuj BX do temp}
+      mov word ptr temp_pos_x, cx     { Zaladuj CX do temp_pos_x }
+      mov word ptr temp_pos_y, dx     { Zaladuj DX do temp_pos_y }
+  end;
 
-    MOUSE_X := temp_pos_x;
-    MOUSE_Y := temp_pos_y;
+  MOUSE_X := temp_pos_x shr 1;
+  MOUSE_Y := temp_pos_y;
 
-    if ( (temp and $01) <> 0 ) then MOUSE_LEFT := TRUE else MOUSE_LEFT := FALSE;
-    if ( (temp and $02) <> 0 ) then MOUSE_RIGHT := TRUE else MOUSE_RIGHT := FALSE;
-    if ( (temp and $04) <> 0 ) then MOUSE_MIDDLE := TRUE else MOUSE_MIDDLE := FALSE;
+  if ( (temp and $01) <> 0 ) then MOUSE_LEFT := TRUE else MOUSE_LEFT := FALSE;
+  if ( (temp and $02) <> 0 ) then MOUSE_RIGHT := TRUE else MOUSE_RIGHT := FALSE;
+  if ( (temp and $04) <> 0 ) then MOUSE_MIDDLE := TRUE else MOUSE_MIDDLE := FALSE;
 end;
 
 (***********************************************************)

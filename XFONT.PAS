@@ -1,5 +1,11 @@
 unit xFont;
 
+(*******************************************************************)
+(** //                    XENGINE Font Unit                    // **)
+(** //  (C) 2025-2026 Coded by Adam Kozinski & Dominik Galoch  // **)
+(** ///////////////////////////////////////////////////////////// **)
+(*******************************************************************)
+
 interface
 
 uses xvga256;
@@ -111,11 +117,19 @@ const
         ($36, $48, $00, $00, $00, $00, $00, $00)   {93}{'~'}
     );
 
-procedure xLoadFont(filename : string);
-procedure xText(buffer_ptr : pointer; x, y : word; text : string; color : byte);
-procedure xInitFont;
+{//  N A G L O W K I  P R O C E D U R  I  F U N K C J I  //}
+{//////////////////////////////////////////////////////////}
+
+procedure xLoadFont(filename : string);                                             { Wczytaj czcionke }
+procedure xLoadFontPkg(package_name, internal_name : string);                       { Wczytaj czcionke z paczki }
+procedure xText(buffer_ptr : pointer; x, y : word; text : string; color : byte);    { Wyswietl tekst }
+procedure xInitFont;                                                                { Inicjalizacja czcionki }
+
+{//////////////////////////////////////////////////////////}
 
 implementation
+
+(***********************************************************)
 
 procedure xLoadFont(filename : string);
 var
@@ -148,6 +162,42 @@ begin
     end;
     xFreeImage(image);
 end;
+
+(***********************************************************)
+
+procedure xLoadFontPkg(package_name, internal_name : string);
+var
+    image : TImage;
+    chars_per_row, idx, col, row, x, y : word;
+    pixel, byte_val : byte;
+begin
+    xLoadBitmapPkg(package_name, internal_name, image);
+    if (image.width mod 8 <> 0) or (image.height mod 8 <> 0) then
+    begin
+        xFreeImage(image);
+        exit;
+    end;
+    chars_per_row := image.width div 8;
+    for idx := 0 to NUM_CHARS do
+    begin
+        col := idx mod chars_per_row;
+        row := idx div chars_per_row;
+        if (row * 8 >= image.height) then break;
+        for y := 0 to 7 do
+        begin
+            byte_val := 0;
+            for x := 0 to 7 do
+            begin
+                pixel := image.img_ptr^[ (row*8 + y) * image.width + (col*8 + x) ];
+                if pixel <> 0 then byte_val := byte_val or (1 shl (7 - x));
+            end;
+            FONT_DATA[idx][y] := byte_val;
+        end;
+    end;
+    xFreeImage(image);
+end;
+
+(***********************************************************)
 
 procedure xText(buffer_ptr : pointer; x, y : word; text : string; color : byte);
 var
@@ -241,6 +291,8 @@ begin
     end;
 end;
 
+(***********************************************************)
+
 procedure xInitFont;
 var
     i : integer;
@@ -248,6 +300,8 @@ begin
     for i := 0 to NUM_CHARS do
         FONT_DATA[i] := DEFAULT_FONT[i];
 end;
+
+(***********************************************************)
 
 begin
     xInitFont;

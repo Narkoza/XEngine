@@ -1,0 +1,203 @@
+program XSnake;
+
+uses crt, xvga256, xkeybrd, xfont, xTimer, xsound;
+
+const
+  CELL_SIZE           = 10;
+  GRID_WIDTH          = 30;
+  GRID_HEIGHT         = 20;
+  SCREEN_WIDTH        = 320;
+  SCREEN_HEIGHT       = 200;
+  UPDATE_INTERVAL_MS  = 50;   { Interwal aktualizacji gry w milisekundach }
+
+type
+  TDirection = (dirUp, dirDown, dirLeft, dirRight);
+
+  TPoint = record
+    x, y: word;
+  end;
+
+  TSnake = record
+    segments:   array[0..599] of TPoint;
+    length:     word;
+    direction:  TDirection;
+  end;
+
+var
+  snake:      TSnake;
+  food:       TPoint;
+  score:      word;
+  gameOver:   boolean;
+  buffer_ptr: pointer;
+
+{ Procedura do ustawiania palety kolorow }
+procedure SetPalette;
+begin
+  xSetColor(0, 0, 0, 0);    { Czarne tlo }
+  xSetColor(1, 0, 63, 0);   { Zielony waz }
+  xSetColor(2, 63, 0, 0);   { Czerwone jedzenie }
+  xSetColor(3, 63, 63, 63); { Bialy tekst }
+end;
+
+{ Inicjalizacja gry }
+procedure InitializeGame;
+var
+  i: word;
+begin
+  snake.length := 1;
+  snake.segments[0].x := GRID_WIDTH div 2;
+  snake.segments[0].y := GRID_HEIGHT div 2;
+  snake.direction := dirRight;
+
+  repeat
+    food.x := random(GRID_WIDTH);
+    food.y := random(GRID_HEIGHT);
+  until (food.x <> snake.segments[0].x) or (food.y <> snake.segments[0].y);
+
+  score := 0;
+  gameOver := false;
+end;
+
+{ Rysowanie gry na buforze }
+procedure DrawGame;
+var
+  i:        word;
+  scoreStr: string;
+begin
+  { Czyszczenie bufora }
+  xClearScreen(buffer_ptr, 0);
+
+  { Rysowanie weza }
+  for i := 0 to snake.length - 1 do
+    xDrawSquare(buffer_ptr, snake.segments[i].x * CELL_SIZE, snake.segments[i].y * CELL_SIZE, CELL_SIZE - 1, 1, true);
+
+  { Rysowanie jedzenia }
+  xDrawSquare(buffer_ptr, food.x * CELL_SIZE, food.y * CELL_SIZE, CELL_SIZE - 1, 2, true);
+
+  { Rysowanie wyniku }
+  Str(score, scoreStr);
+  xText(buffer_ptr, 10, 5, 'Score: ' + scoreStr, 3);
+
+  { Kopiowanie bufora na ekran }
+  xWaitForVertRetrace;
+  xCopyBuffer(buffer_ptr, ptr(VGA_SEGMENT, 0));
+end;
+
+{ Ruch weza }
+procedure MoveSnake;
+var
+  i:      word;
+  head:   TPoint;
+  eating: boolean;
+begin
+  head := snake.segments[0];
+
+  case snake.direction of
+    dirUp:    dec(head.y);
+    dirDown:  inc(head.y);
+    dirLeft:  dec(head.x);
+    dirRight: inc(head.x);
+  end;
+
+  if (head.x >= GRID_WIDTH) or (head.x < 0) or (head.y >= GRID_HEIGHT) or (head.y < 0) then
+  begin
+    gameOver := true;
+    exit;
+  end;
+
+  for i := 0 to snake.length - 1 do
+    if (head.x = snake.segments[i].x) and (head.y = snake.segments[i].y) then
+    begin
+      gameOver := true;
+      exit;
+    end;
+
+  eating := (head.x = food.x) and (head.y = food.y);
+  if eating then
+  begin
+    inc(snake.length);
+    xPlayNote(G, 6, 1);
+  end;
+
+  for i := snake.length - 1 downto 1 do
+    snake.segments[i] := snake.segments[i - 1];
+  snake.segments[0] := head;
+
+  if eating then
+  begin
+    inc(score);
+    repeat
+      food.x := random(GRID_WIDTH);
+      food.y := random(GRID_HEIGHT);
+      i := 0;
+      while (i < snake.length) and ((food.x <> snake.segments[i].x) or (food.y <> snake.segments[i].y)) do
+        inc(i);
+    until i = snake.length;
+  end;
+end;
+
+{ Aktualizacja stanu gry }
+procedure UpdateGame;
+begin
+  if key[KEY_UP] then
+    if snake.direction <> dirDown then snake.direction := dirUp;
+  if key[KEY_DOWN] then
+    if snake.direction <> dirUp then snake.direction := dirDown;
+  if key[KEY_LEFT] then
+    if snake.direction <> dirRight then snake.direction := dirLeft;
+  if key[KEY_RIGHT] then
+    if snake.direction <> dirLeft then snake.direction := dirRight;
+  if key[KEY_ESC] then
+    gameOver := true;
+end;
+
+{ Ekran konca gry }
+procedure GameOverScreen;
+var
+  scoreStr: string;
+begin
+  xClearScreen(buffer_ptr, 0);
+  Str(score, scoreStr);
+  xText(buffer_ptr, 120, 90, 'Game Over', 3);
+  xText(buffer_ptr, 110, 100, 'Score: ' + scoreStr, 3);
+  xPlayNote(C, 3, 20);
+  xWait(100);
+  xPlayNote(C, 2, 20);
+  xWait(200);
+  xPlayNote(C, 3, 20);
+  xWait(100);
+  xPlayNote(C, 2, 20);
+  xWait(200);
+  xPlayNote(C, 3, 20);
+  xWait(100);
+  xPlayNote(C, 2, 20);
+  xWait(200);
+  xPlayPause(1);
+  xWaitForVertRetrace;
+  xCopyBuffer(buffer_ptr, ptr(VGA_SEGMENT, 0));
+  xWait(2000);  { Czekaj 2000 ms (~2 sekundy) }
+end;
+
+begin
+  randomize;
+  xSetVGAMode;
+  xCreateBuffer(buffer_ptr);
+  xKeyboardInit;  { Inicjalizacja obslugi klawiatury }
+  SetPalette;
+  InitializeGame;
+
+  while not gameOver do
+  begin
+    UpdateGame;  { Pobierz wejscie od gracza }
+    MoveSnake;   { Zaktualizuj stan gry, w tym pozycje jedzenia }
+    DrawGame;    { Narysuj zaktualizowany stan gry }
+    xUpdateSound; { Sprawdz czy grany jest dzwiek }
+    xWait(UPDATE_INTERVAL_MS);  { Poczekaj przed kolejna iteracje }
+  end;
+
+  GameOverScreen;
+  xRestoreTimer;      { Przywraca ustawienia timera }
+  xDisableKeyboard;   { Zakonczenie obslugi klawiatury }
+  xFreeBuffer(buffer_ptr);
+  xSetTxtMode;
+end.

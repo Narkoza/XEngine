@@ -2,15 +2,15 @@ unit xVGA256;
 
 {$G+}  { Zezwol na instrukcje 286 }
 
-(**************************************************************)
-(** //                 XENGINE VGA Unit                   // **)
-(** //  (C) 2025 Coded by Adam Kozinski & Dominik Galoch  // **)
-(** //////////////////////////////////////////////////////// **)
-(**************************************************************)
+(*******************************************************************)
+(** //                  XENGINE VGA Unit                       // **)
+(** //  (C) 2025-2026 Coded by Adam Kozinski & Dominik Galoch  // **)
+(** ///////////////////////////////////////////////////////////// **)
+(*******************************************************************)
 
 interface
 
-uses crt;
+uses crt, xfiles;
 
 const
     SCREEN_WIDTH    = 320;
@@ -29,22 +29,22 @@ type
              end;
 
     THandleBMP = record
-                    bfType          : word;    { Typ pliku (musi byc 'BM' = 0x4D42) }
-                    bfSize          : longint; { Calkowity rozmiar pliku (w bajtach) }
-                    bfRes1          : word;    { Zarezerwowane (zwykle 0) }
-                    bfRes2          : word;    { Zarezerwowane (zwykle 0) }
-                    bfOffBits       : longint; { Przesuniecie od poczatku pliku do danych obrazu }
-                    biSize          : longint; { Rozmiar tego naglowka (zwykle 40 bajtow) }
-                    biWidth         : longint; { Szerokosc obrazu w pikselach }
-                    biHeight        : longint; { Wysokosc obrazu w pikselach }
-                    biPlanes        : word;    { Liczba plaszczyzn (zwykle 1) }
-                    biBitCount      : word;    { Liczba bitow na piksel (dla 256 kolorow to 8) }
-                    biCompression   : longint; { Typ kompresji (zwykle 0 - brak kompresji) }
-                    biSizeImage     : longint; { Rozmiar danych obrazu }
-                    biXPelsPerMeter : longint; { Rozdzielczosc pozioma (w pikselach na metr) }
-                    biYPelsPerMeter : longint; { Rozdzielczosc pionowa (w pikselach na metr) }
-                    biClrUsed       : longint; { Liczba uzywanych kolorow (256 dla 256 kolorow) }
-                    biClrImportant  : longint; { Liczba waznych kolorow (mozna ustawic na 0) }
+                    bfType          : word;     { Typ pliku (musi byc 'BM' = 0x4D42) }
+                    bfSize          : longint;  { Calkowity rozmiar pliku (w bajtach) }
+                    bfRes1          : word;     { Zarezerwowane (zwykle 0) }
+                    bfRes2          : word;     { Zarezerwowane (zwykle 0) }
+                    bfOffBits       : longint;  { Przesuniecie od poczatku pliku do danych obrazu }
+                    biSize          : longint;  { Rozmiar tego naglowka (zwykle 40 bajtow) }
+                    biWidth         : longint;  { Szerokosc obrazu w pikselach }
+                    biHeight        : longint;  { Wysokosc obrazu w pikselach }
+                    biPlanes        : word;     { Liczba plaszczyzn (zwykle 1) }
+                    biBitCount      : word;     { Liczba bitow na piksel (dla 256 kolorow to 8) }
+                    biCompression   : longint;  { Typ kompresji (zwykle 0 - brak kompresji) }
+                    biSizeImage     : longint;  { Rozmiar danych obrazu }
+                    biXPelsPerMeter : longint;  { Rozdzielczosc pozioma (w pikselach na metr) }
+                    biYPelsPerMeter : longint;  { Rozdzielczosc pionowa (w pikselach na metr) }
+                    biClrUsed       : longint;  { Liczba uzywanych kolorow (256 dla 256 kolorow) }
+                    biClrImportant  : longint;  { Liczba waznych kolorow (mozna ustawic na 0) }
                 end;
 
     TPaletteBMP = record
@@ -82,10 +82,12 @@ procedure xSetColor(color_nr : byte; r, g, b : byte);                           
 procedure xGetPaletteVGA(var pal : VGAPalette);                                                        { Pobierz palete VGA }
 procedure xSetPaletteVGA(pal : VGAPalette);                                                             { Zapisz palete VGA }
 procedure xLoadPaletteBMP(filename : string);                                                          { Pobierz palete BMP }
+procedure xLoadBitmapPalPkg(package_name, internal_name : string);                            { Pobierz palete BMP z paczki }
 procedure xSavePalFile(filename : string; pal : VGAPalette);                                       { Zapisz palete do pliku }
 procedure xLoadPalFile(filename : string; pal : VGAPalette);                                       { Wczytaj palete z pliku }
 procedure xGetColor(color_nr : byte; var color : TPalette);                                        { Pobierz wzorzec koloru }
 procedure xLoadBitmap(var image : TImage; filename : string);                                             { Wczytaj bitmape }
+procedure xLoadBitmapPkg(package_name, internal_name : string; var image : TImage);              { Wczytaj bitmape z paczki }
 procedure xFreeImage(var image : TImage);                                                          { Zwolnij pamiec bitmapy }
 procedure xSaveBitmap(filename : string);                                                                  { Zapisz bitmape }
 procedure xDrawBitmap(buffer_ptr : pointer; x, y : word; image : TImage; transparent : boolean);            { Rysuj bitmape }
@@ -101,8 +103,6 @@ procedure xDrawCircle(buffer_ptr : pointer; x_start, y_start, radius : word; col
 procedure xFadeOut(time : byte);                                                                              { Wygas ekran }
 procedure xFadeIn(var pal : VGAPalette; time : byte);                                                     { Rozjasnij ekran }
 procedure xMeltScreen(buffer_ptr : pointer; color : byte);                                             { Roztapianie ekranu }
-procedure xFloodScreen(buffer_ptr : pointer; color, time : byte);                                      { Zalej ekran ciecza }
-procedure xScreenOff(buffer_ptr : pointer; color1, color2 : byte; time : integer);                 { Wygas ekran (Efekt TV) }
 procedure xCreateBuffer(var buffer_ptr : pointer);                                    { Zaalokuj pamiec dla drugiego bufora }
 procedure xFreeBuffer(var buffer_ptr : pointer);                                           { Zwolnij pamiec drugiego bufora }
 procedure xCopyBuffer(source, target : pointer);                                           { Kopiuj bufor ze zrodla do celu }
@@ -137,53 +137,57 @@ end;
 
 (***********************************************************)
 
-procedure xSetColor(color_nr : byte; r, g, b : byte);
-begin
-    { Okreslamy numer wzorca koloru ktory chcemy zmodyfikowac }
-    port[$3c8] := color_nr;
-
-    { Wysylamy do portu 3c9h intensywnosc podstawowych kolorow }
-    port[$3c9] := r;
-    port[$3c9] := g;
-    port[$3c9] := b;
+procedure xSetColor(color_nr : byte; r, g, b : byte); assembler;
+asm
+    mov  dx, 03C8h
+    mov  al, color_nr
+    out  dx, al
+    
+    inc  dx
+    mov  al, r
+    out  dx, al
+    mov  al, g
+    out  dx, al
+    mov  al, b
+    out  dx, al
 end;
 
 (***********************************************************)
 
-procedure xGetPaletteVGA(var pal : VGAPalette);
-var
-    idx : byte;
-begin
-    { Chcemy odczytac cala palete kolorow, dlatego tez rozpoczynamy
-    jej czytanie od pierwszego wzorca koloru }
-    port[$3c7] := 0;
-
-    { Odczytanie palety kolorow }
-    for idx := 0 to 255 do
-    begin
-        pal[idx].red    := port[$3c9];
-        pal[idx].green  := port[$3c9];
-        pal[idx].blue   := port[$3c9];
-    end;
+procedure xGetPaletteVGA(var pal : VGAPalette); assembler;
+asm
+    mov  dx, 03C7h
+    xor  al, al
+    out  dx, al
+    
+    les  di, pal
+    mov  dx, 03C9h
+    mov  cx, 256 * 3
+    cld
+    
+@read_loop:
+    in   al, dx
+    stosb
+    loop @read_loop
 end;
 
 (***********************************************************)
 
-procedure xSetPaletteVGA(pal : VGAPalette);
-var
-    idx : byte;
-begin
-    { Chcemy zapisac cala palete kolorow, dlatego tez rozpoczynamy
-    jej czytanie od pierwszego wzorca koloru }
-    port[$3c8] := 0;
-
-    { Zapis palety kolorow }
-    for idx := 0 to 255 do
-    begin
-        pal[idx].red    := port[$3c9];
-        pal[idx].green  := port[$3c9];
-        pal[idx].blue   := port[$3c9];
-    end;
+procedure xSetPaletteVGA(pal : VGAPalette); assembler;
+asm
+    mov  dx, 03C8h
+    xor  al, al
+    out  dx, al
+    
+    lds  si, pal
+    mov  dx, 03C9h
+    mov  cx, 256 * 3
+    cld
+    
+@write_loop:
+    lodsb
+    out  dx, al
+    loop @write_loop
 end;
 
 (***********************************************************)
@@ -198,19 +202,78 @@ begin
     reset(fd, 1);
 
     seek(fd, sizeof(THandleBMP));
-
     palette_size := sizeof(bmp_palette);
-
     blockread(fd, bmp_palette, palette_size);
 
-    port[$3c8] := 0;
+    asm
+        mov  dx, 03C8h
+        xor  al, al
+        out  dx, al
+        
+        lea  si, bmp_palette
+        mov  dx, 03C9h
+        xor  cx, cx
+        
+    @pal_loop:
+        mov  al, [si+2]
+        shr  al, 2
+        out  dx, al
+        mov  al, [si+1]
+        shr  al, 2
+        out  dx, al
+        mov  al, [si]
+        shr  al, 2
+        out  dx, al
+        
+        add  si, 4
+        inc  cx
+        cmp  cx, 256
+        jb   @pal_loop
+    end;
 
-    { Odczytanie palety kolorow }
-    for counter := 0 to 255 do
-    begin
-        port[$3c9] := bmp_palette[counter].red shr 2;
-        port[$3c9] := bmp_palette[counter].green shr 2;
-        port[$3c9] := bmp_palette[counter].blue shr 2;
+    close(fd);
+end;
+
+(***********************************************************)
+
+procedure xLoadBitmapPalPkg(package_name, internal_name : string);
+var
+    fd              : file;
+    success         : boolean;
+    file_size       : longint;
+    palette_size    : word;
+begin
+    xOpenPakFile(package_name, internal_name, fd, file_size, success);
+    if not success then exit;
+
+    seek(fd, FilePos(fd) + sizeof(THandleBMP));
+    palette_size := sizeof(bmp_palette);
+    blockread(fd, bmp_palette, palette_size);
+
+    asm
+        mov  dx, 03C8h
+        xor  al, al
+        out  dx, al
+        
+        lea  si, bmp_palette
+        mov  dx, 03C9h
+        xor  cx, cx
+        
+    @pal_loop:
+        mov  al, [si+2]
+        shr  al, 2
+        out  dx, al
+        mov  al, [si+1]
+        shr  al, 2
+        out  dx, al
+        mov  al, [si]
+        shr  al, 2
+        out  dx, al
+        
+        add  si, 4
+        inc  cx
+        cmp  cx, 256
+        jb   @pal_loop
     end;
 
     close(fd);
@@ -242,15 +305,21 @@ end;
 
 (***********************************************************)
 
-procedure xGetColor(color_nr : byte; var color : TPalette);
-begin
-    { Okreslamy numer wzorca koloru ktory chcemy pobrac }
-    port[$3c7] := color_nr;
-
-    { Pobieramy z portu 3c9h intensywnosc podstawowych kolorow }
-    color.red   := port[$3c9];
-    color.green := port[$3c9];
-    color.blue  := port[$3c9];
+procedure xGetColor(color_nr : byte; var color : TPalette); assembler;
+asm
+    mov  dx, 03C7h
+    mov  al, color_nr
+    out  dx, al
+    
+    les  di, color
+    mov  dx, 03C9h
+    
+    in   al, dx
+    stosb
+    in   al, dx
+    stosb
+    in   al, dx
+    stosb
 end;
 
 (***********************************************************)
@@ -262,7 +331,6 @@ var
     counter      : word;
     current_row  : word;
 begin
-
     assign(fd, filename);
     reset(fd, 1);
 
@@ -275,7 +343,7 @@ begin
         exit;
     end;
 
-    seek(fd,1078);
+    seek(fd, img_meta.bfOffBits);
 
     image.width   := img_meta.biWidth;
     image.height  := img_meta.biHeight;
@@ -288,16 +356,67 @@ begin
     end;
 
     getmem(image.img_ptr, image.size);
-
     counter := img_meta.biWidth;
 
     for current_row := 0 to img_meta.biHeight - 1 do
-    begin
         blockread(fd, image.img_ptr^[(img_meta.biHeight - 1 - current_row) * image.width], counter);
-    end;
 
     close(fd);
+end;
 
+(***********************************************************)
+
+procedure xLoadBitmapPkg(package_name, internal_name : string; var image : TImage);
+var
+    fd           : file;
+    success      : boolean;
+    file_size    : longint;
+    img_meta     : THandleBMP;
+    counter      : word;
+    current_row  : word;
+begin
+    xOpenPakFile(package_name, internal_name, fd, file_size, success);
+    if not success then exit;
+
+    counter := sizeof(THandleBMP);
+    blockread(fd, img_meta, counter);
+    if counter <> sizeof(THandleBMP) then
+    begin
+        close(fd);
+        exit;
+    end;
+
+    if img_meta.bfType <> $4D42 then
+    begin
+        close(fd);
+        exit;
+    end;
+
+    if((img_meta.biWidth > SCREEN_WIDTH) or (img_meta.biHeight > SCREEN_HEIGHT)) then
+    begin
+        close(fd);
+        exit;
+    end;
+
+    seek(fd, FilePos(fd) + (img_meta.bfOffBits - sizeof(THandleBMP)));
+
+    image.width   := img_meta.biWidth;
+    image.height  := img_meta.biHeight;
+    image.size    := img_meta.biWidth * img_meta.biHeight;
+
+    if(maxavail < image.size) then
+    begin
+        close(fd);
+        exit;
+    end;
+
+    getmem(image.img_ptr, image.size);
+    counter := img_meta.biWidth;
+
+    for current_row := 0 to img_meta.biHeight - 1 do
+        blockread(fd, image.img_ptr^[(img_meta.biHeight - 1 - current_row) * image.width], counter);
+
+    close(fd);
 end;
 
 (***********************************************************)
@@ -320,27 +439,26 @@ var
     palette     : VGAPalette;
     bmp_pal     : array[0..255] of TPaletteBMP;
     row_data    : array[0..SCREEN_WIDTH-1] of byte;
-    row         : word;
-    i           : word;
+    row, i      : word;
 begin
     with bmp_header do
     begin
-        bfType          := $4D42;
-        bfSize          := sizeof(THandleBMP) + sizeof(bmp_pal) + (SCREEN_WIDTH * SCREEN_HEIGHT);
-        bfRes1          := 0;
-        bfRes2          := 0;
-        bfOffBits       := sizeof(THandleBMP) + sizeof(bmp_pal);
-        biSize          := 40;
-        biWidth         := SCREEN_WIDTH;
-        biHeight        := SCREEN_HEIGHT;
-        biPlanes        := 1;
-        biBitCount      := 8;
-        biCompression   := 0;
-        biSizeImage     := SCREEN_WIDTH * SCREEN_HEIGHT;
+        bfType := $4D42;
+        bfSize := sizeof(THandleBMP) + sizeof(bmp_pal) + (SCREEN_WIDTH * SCREEN_HEIGHT);
+        bfRes1 := 0;
+        bfRes2 := 0;
+        bfOffBits := sizeof(THandleBMP) + sizeof(bmp_pal);
+        biSize := 40;
+        biWidth := SCREEN_WIDTH;
+        biHeight := SCREEN_HEIGHT;
+        biPlanes := 1;
+        biBitCount := 8;
+        biCompression := 0;
+        biSizeImage := SCREEN_WIDTH * SCREEN_HEIGHT;
         biXPelsPerMeter := 0;
         biYPelsPerMeter := 0;
-        biClrUsed       := 256;
-        biClrImportant  := 0;
+        biClrUsed := 256;
+        biClrImportant := 0;
     end;
 
     xGetPaletteVGA(palette);
@@ -355,7 +473,7 @@ begin
 
     assign(fd, filename);
     rewrite(fd, 1);
-
+    
     blockwrite(fd, bmp_header, sizeof(THandleBMP));
     blockwrite(fd, bmp_pal, sizeof(bmp_pal));
 
@@ -363,7 +481,6 @@ begin
     begin
         for i := 0 to SCREEN_WIDTH - 1 do
             row_data[i] := mem[VGA_SEGMENT:((SCREEN_HEIGHT - 1 - row) * SCREEN_WIDTH) + i];
-
         blockwrite(fd, row_data, SCREEN_WIDTH);
     end;
 
@@ -372,28 +489,86 @@ end;
 
 (***********************************************************)
 
-procedure xDrawBitmap(buffer_ptr : pointer; x, y : word; image : TImage; transparent : boolean);
-var
-    counter             : word;
-    buffer_offset       : word;
-    pixel               : byte;
-    transparent_color   : byte;
-begin
-    if (x >= SCREEN_WIDTH) or (y >= SCREEN_HEIGHT) or
-    (x + image.width > SCREEN_WIDTH) or (y + image.height > SCREEN_HEIGHT) then exit;
-
-    transparent_color := 0;  { Indeks 0 jako kolor przezroczysty }
-    buffer_offset := y * SCREEN_WIDTH + x;
-
-    for counter := 0 to image.size - 1 do
-    begin
-        pixel := image.img_ptr^[counter];
-        if not transparent or (pixel <> transparent_color) then
-            mem[seg(buffer_ptr^):buffer_offset + ofs(buffer_ptr^)] := pixel;
-            inc(buffer_offset);
-        if (counter mod image.width) = image.width - 1 then
-            inc(buffer_offset, SCREEN_WIDTH - image.width);
-    end;
+procedure xDrawBitmap(buffer_ptr : pointer; x, y : word; image : TImage; transparent : boolean); assembler;
+asm
+    mov  ax, x
+    cmp  ax, SCREEN_WIDTH
+    jae  @Exit
+    
+    mov  ax, y
+    cmp  ax, SCREEN_HEIGHT
+    jae  @Exit
+    
+    les  di, image
+    mov  ax, es:[di].TImage.width
+    add  ax, x
+    cmp  ax, SCREEN_WIDTH
+    ja   @Exit
+    
+    mov  ax, es:[di].TImage.height
+    add  ax, y
+    cmp  ax, SCREEN_HEIGHT
+    ja   @Exit
+    
+    mov  ax, y
+    mov  dx, SCREEN_WIDTH
+    mul  dx
+    add  ax, x
+    mov  bx, ax
+    
+    push ds
+    lds  si, image
+    mov  cx, [si].TImage.width
+    mov  dx, [si].TImage.height
+    lds  si, [si].TImage.img_ptr
+    
+    les  di, buffer_ptr
+    add  di, bx
+    
+    cmp  transparent, 0
+    je   @NonTransparent
+    
+@TransparentLoop:
+    push cx
+    
+@RowLoopTransparent:
+    lodsb
+    test al, al
+    je   @SkipPixel
+    stosb
+    jmp  @NextPixel
+    
+@SkipPixel:
+    inc  di
+    
+@NextPixel:
+    loop @RowLoopTransparent
+    
+    pop  cx
+    add  di, SCREEN_WIDTH
+    sub  di, cx
+    
+    dec  dx
+    jnz  @TransparentLoop
+    jmp  @Done
+    
+@NonTransparent:
+    push cx
+    
+@RowLoop:
+    rep  movsb
+    
+    pop  cx
+    add  di, SCREEN_WIDTH
+    sub  di, cx
+    
+    dec  dx
+    jnz  @NonTransparent
+    
+@Done:
+    pop  ds
+    
+@Exit:
 end;
 
 (***********************************************************)
@@ -405,12 +580,12 @@ var
 begin
     x_ratio := original.width / new_width;
     y_ratio := original.height / new_height;
-
+    
     scaled.width := new_width;
     scaled.height := new_height;
     scaled.size := new_width * new_height;
     getmem(scaled.img_ptr, scaled.size);
-
+    
     for y := 0 to new_height - 1 do
         for x := 0 to new_width - 1 do
         begin
@@ -433,105 +608,92 @@ var
     cx, cy, new_cx, new_cy  : real;
     i, j                    : word;
 begin
-    { Konwersja kata na radiany }
     angle := angle * pi / 180.0;
     cos_theta := cos(angle);
     sin_theta := sin(angle);
-
-    { Obliczenie nowych wymiarow bitmapy }
+    
     new_width := round(abs(original.width * cos_theta) + abs(original.height * sin_theta));
     new_height := round(abs(original.width * sin_theta) + abs(original.height * cos_theta));
-
-    { Alokacja pamieci dla nowej bitmapy }
+    
     rotated.width := new_width;
     rotated.height := new_height;
     rotated.size := new_width * new_height;
     getmem(rotated.img_ptr, rotated.size);
-
-    { Obliczenie srodkow bitmap }
+    
     cx := original.width / 2.0;
     cy := original.height / 2.0;
     new_cx := new_width / 2.0;
     new_cy := new_height / 2.0;
-
-    { Wypelnienie nowej bitmapy pikselami }
+    
     for j := 0 to new_height - 1 do
         for i := 0 to new_width - 1 do
         begin
-            { Obliczenie wspolrzednych w oryginalnej bitmapie }
             x := round((i - new_cx) * cos_theta + (j - new_cy) * sin_theta + cx);
             y := round(-(i - new_cx) * sin_theta + (j - new_cy) * cos_theta + cy);
-
-            { Sprawdzenie, czy piksel miesci sie w granicach oryginalnej bitmapy }
+            
             if (x >= 0) and (x < original.width) and (y >= 0) and (y < original.height) then
                 rotated.img_ptr^[j * new_width + i] := original.img_ptr^[y * original.width + x]
             else
-                rotated.img_ptr^[j * new_width + i] := 0; { Kolor tla }
+                rotated.img_ptr^[j * new_width + i] := 0;
         end;
 end;
 
 (***********************************************************)
 
-procedure xDrawPixel(buffer_ptr : pointer; x, y : word; color : byte);
-begin
-    asm
-        les di, buffer_ptr       { Zaladuj segment i offset bufora do ES:DI }
-        mov ax, y
-        mov bx, ax
-        shl ax, 8                { y * 256 }
-        shl bx, 6                { y * 64 }
-        add bx, ax               { y * (256 + 64) = y * 320 }
-        add bx, x                { y * 320 + x }
-        mov al, color
-        mov byte ptr es:[bx], al { Zapisz kolor w buforze }
-    end;
+procedure xDrawPixel(buffer_ptr : pointer; x, y : word; color : byte); assembler;
+asm
+    les  di, buffer_ptr
+    mov  ax, y
+    mov  bx, ax
+    shl  ax, 8
+    shl  bx, 6
+    add  bx, ax
+    add  bx, x
+    mov  al, color
+    mov  es:[bx], al
 end;
 
 (***********************************************************)
 
-procedure xDrawLineHorz(buffer_ptr : pointer; x_start, x_end, y : word; color : byte);
-begin
-    asm
-        les di, buffer_ptr       { Zaladuj segment i offset bufora do ES:DI }
-        mov ax, y
-        mov bx, ax
-        shl ax, 8                { y * 256 }
-        shl bx, 6                { y * 64 }
-        add bx, ax               { y * 320 }
-        add bx, x_start          { y * 320 + x_start }
-        add di, bx               { DI = DI + (y * 320 + x_start) }
-        mov cx, x_end
-        sub cx, x_start
-        add cx, 1                { CX = x_end - x_start + 1 }
-        mov al, color
-        cld
-        rep stosb                { Wypelnij linie kolorem }
-    end;
+procedure xDrawLineHorz(buffer_ptr : pointer; x_start, x_end, y : word; color : byte); assembler;
+asm
+    les  di, buffer_ptr
+    mov  ax, y
+    mov  bx, ax
+    shl  ax, 8
+    shl  bx, 6
+    add  bx, ax
+    add  bx, x_start
+    add  di, bx
+    mov  cx, x_end
+    sub  cx, x_start
+    inc  cx
+    mov  al, color
+    cld
+    rep  stosb
 end;
 
 (***********************************************************)
 
-procedure xDrawLineVert(buffer_ptr : pointer; x, y_start, y_end : word; color : byte);
-begin
-    asm
-        les di, buffer_ptr       { Zaladuj segment i offset bufora do ES:DI }
-        mov ax, y_start
-        mov bx, ax
-        shl ax, 8                { y_start * 256 }
-        shl bx, 6                { y_start * 64 }
-        add bx, ax               { y_start * 320 }
-        add bx, x                { y_start * 320 + x }
-        add di, bx               { DI = poczatkowy offset w buforze }
-        mov cx, y_end
-        sub cx, y_start
-        add cx, 1                { CX = liczba pikseli do narysowania }
-        mov al, color            { Zaladuj kolor do AL }
+procedure xDrawLineVert(buffer_ptr : pointer; x, y_start, y_end : word; color : byte); assembler;
+asm
+    les  di, buffer_ptr
+    mov  ax, y_start
+    mov  bx, ax
+    shl  ax, 8
+    shl  bx, 6
+    add  bx, ax
+    add  bx, x
+    add  di, bx
+    mov  cx, y_end
+    sub  cx, y_start
+    inc  cx
+    mov  al, color
 
-        @draw_line_loop:
-        mov es:[di], al          { Zapisz kolor w buforze }
-        add di, 320              { Przesun do nastepnego wiersza }
-        loop @draw_line_loop     { Powtarzaj dla kazdego piksela }
-    end;
+@draw_line_loop:
+    mov  es:[di], al
+    add  di, 320
+    loop @draw_line_loop
 end;
 
 (***********************************************************)
@@ -539,11 +701,13 @@ end;
 procedure xDrawLineDiag(buffer_ptr : pointer; x_start, y_start, x_end, y_end : word; color : byte);
 var
     dx, dy, steps, i : integer;
-    x, y, xInc, yInc : real;
+    x, y : real;
+    xInc, yInc : real;
 begin
     dx := x_end - x_start;
     dy := y_end - y_start;
     if abs(dx) > abs(dy) then steps := abs(dx) else steps := abs(dy);
+    if steps = 0 then exit;
     xInc := dx / steps;
     yInc := dy / steps;
     x := x_start;
@@ -636,7 +800,6 @@ begin
 
         for idx1 := 0 to 255 do
         begin
-
             xGetColor(idx1, color);
 
             if(color.red > 0) then dec(color.red);
@@ -644,7 +807,6 @@ begin
             if(color.blue > 0) then dec(color.blue);
 
             xSetColor(idx1, color.red, color.green, color.blue);
-
         end;
 
         if(time <> 0) then delay(time);
@@ -658,14 +820,18 @@ var
     idx1, idx2  : byte;
     color       : TPalette;
 begin
-    port[$3C8] := 0;
-    for idx1 := 0 to 255 do
-    begin
-        port[$3C9] := 0;
-        port[$3C9] := 0;
-        port[$3C9] := 0;
+    asm
+        mov  dx, 03C8h
+        xor  al, al
+        out  dx, al
+        mov  dx, 03C9h
+        mov  cx, 256 * 3
+    @clear:
+        xor  al, al
+        out  dx, al
+        loop @clear
     end;
-
+    
     for idx2 := 0 to 63 do
     begin
         xWaitForVertRetrace;
@@ -674,14 +840,9 @@ begin
         begin
             xGetColor(idx1, color);
 
-            if(color.red < pal[idx1].red) then
-                inc(color.red);
-
-            if(color.green < pal[idx1].green) then
-                inc(color.green);
-
-            if(color.blue < pal[idx1].blue) then
-                inc(color.blue);
+            if(color.red < pal[idx1].red) then inc(color.red);
+            if(color.green < pal[idx1].green) then inc(color.green);
+            if(color.blue < pal[idx1].blue) then inc(color.blue);
 
             xSetColor(idx1, color.red, color.green, color.blue);
         end;
@@ -699,7 +860,7 @@ begin
     for idx := 0 to 800000 do
     begin
         xDrawPixel(buffer_ptr, random(320), random(200), color);
-        if((idx mod 10000) = 0) then
+        if((idx mod 10000) = 0) then 
         begin
             delay(2);
             xWaitForVertRetrace;
@@ -710,88 +871,12 @@ end;
 
 (***********************************************************)
 
-procedure xFloodScreen(buffer_ptr : pointer; color, time : byte);
-var
-    line_pos_y      : array[0..319] of byte;
-    fragment_size   : array[0..319] of byte;
-    idx1, idx2      : word;
-begin
-    for idx1 := 0 to 319 do
-    begin
-        line_pos_y[idx1] := 0;
-        fragment_size[idx1] := random(7) + 2;
-    end;
-
-    for idx1 := 0 to 99 do
-    begin
-        for idx2 := 0 to 319 do
-        begin
-            if(line_pos_y[idx2] + fragment_size[idx2] < 200) then
-            begin
-                xDrawLineVert(buffer_ptr, idx2, line_pos_y[idx2], line_pos_y[idx2] + fragment_size[idx2], color);
-                inc(line_pos_y[idx2], fragment_size[idx2]);
-            end else
-            begin
-                xDrawLineVert(buffer_ptr, idx2, line_pos_y[idx2], 199, color);
-            end;
-        end;
-
-        xWaitForVertRetrace;
-        xCopyBuffer(buffer_ptr, ptr(VGA_SEGMENT, 0));
-
-        if(time <> 0) then delay(time);
-    end;
-end;
-
-(***********************************************************)
-
-procedure xScreenOff(buffer_ptr : pointer; color1, color2 : byte; time : integer);
-var
-    temp : VGAPalette;
-    i    : word;
-begin
-    xGetPaletteVGA(temp);
-
-    for i := 1 to SCREEN_HEIGHT div 2 do
-    begin
-        xWaitForVertRetrace;
-        xDrawLineHorz(buffer_ptr, 0, SCREEN_WIDTH - 1, i - 1, color1);
-        xDrawLineHorz(buffer_ptr, 0, SCREEN_WIDTH - 1, i, color2);
-        xDrawLineHorz(buffer_ptr, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1 - i, color2);
-        xDrawLineHorz(buffer_ptr, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - i, color1);
-        if time > 0 then delay(time);
-        xCopyBuffer(buffer_ptr, ptr(VGA_SEGMENT, 0));
-    end;
-
-    for i := 0 to (SCREEN_WIDTH div 2) - 2 do
-    begin
-        xWaitForVertRetrace;
-        xDrawPixel(buffer_ptr, i, (SCREEN_HEIGHT div 2) - 1, color1);
-        xDrawPixel(buffer_ptr, SCREEN_WIDTH - 1 - i, (SCREEN_HEIGHT div 2) - 1, color1);
-        if time > 0 then delay(time);
-        xCopyBuffer(buffer_ptr, ptr(VGA_SEGMENT, 0));
-    end;
-
-    xFadeOut(time * 5);
-
-    i := (SCREEN_WIDTH div 2) - 1;
-    xDrawPixel(buffer_ptr, i, (SCREEN_HEIGHT div 2) - 1, color1);
-    xDrawPixel(buffer_ptr, SCREEN_WIDTH - 1 - i, (SCREEN_HEIGHT div 2) - 1, color1);
-    xCopyBuffer(buffer_ptr, ptr(VGA_SEGMENT, 0));
-
-    xSetPaletteVGA(temp);
-end;
-
-(***********************************************************)
-
 procedure xCreateBuffer(var buffer_ptr : pointer);
 var
     _free_mem : longint;
 begin
-    { Sprawdzamy czy system posiada wystarczajaco duzo wolnej pamieci }
     _free_mem := maxavail;
     if(_free_mem < MAX_BUFFER_SIZE) then exit;
-
     getmem(buffer_ptr, MAX_BUFFER_SIZE);
 end;
 
@@ -804,50 +889,44 @@ end;
 
 (***********************************************************)
 
-procedure xCopyBuffer(source, target : pointer);
-begin
-    asm
-        push ds
-        lds si, source
-        les di, target
-        mov cx, 32000
-        cld
-        rep movsw
-        pop ds
-    end;
+procedure xCopyBuffer(source, target : pointer); assembler;
+asm
+    push ds
+    lds  si, source
+    les  di, target
+    mov  cx, 32000
+    cld
+    rep  movsw
+    pop  ds
 end;
 
 (***********************************************************)
 
-procedure xClearScreen(buffer_ptr : pointer; color : byte);
-begin
-    asm
-        les di, buffer_ptr
-        mov cx, 32000
-        mov ah, color
-        mov al, ah
-        cld
-        rep stosw
-    end;
+procedure xClearScreen(buffer_ptr : pointer; color : byte); assembler;
+asm
+    les  di, buffer_ptr
+    mov  cx, 32000
+    mov  ah, color
+    mov  al, ah
+    cld
+    rep  stosw
 end;
 
 (***********************************************************)
 
-procedure xWaitForVertRetrace;
-begin
-    asm
-        mov dx, 3dah
+procedure xWaitForVertRetrace; assembler;
+asm
+    mov  dx, 03DAh
 
-        @inProgress:
-        in  al, dx
-        test al, 00001000b
-        jnz @inProgress
+@inProgress:
+    in   al, dx
+    test al, 00001000b
+    jnz  @inProgress
 
-        @noRetrace:
-        in al, dx
-        test al, 00001000b
-        jz @noRetrace
-    end;
+@noRetrace:
+    in   al, dx
+    test al, 00001000b
+    jz   @noRetrace
 end;
 
 (***********************************************************)
@@ -862,12 +941,11 @@ var
     _buffer_ptr                 : pointer;
     _width                      : integer;
     transparent_color           : byte;
-    pixel                       : byte;
 begin
     change_x := 0;
     change_y := 0;
     _buffer_ptr := img.img_ptr;
-    transparent_color := 0; { Indeks 0 jako kolor przezroczysty }
+    transparent_color := 0;
 
     if(target.x > 319) then exit;
     if(target.y > 199) then exit;
@@ -911,36 +989,36 @@ begin
         begin
             asm
                 push ds
-                les di, buffer_ptr
-                add di, start_buffer
-                lds si, _buffer_ptr
-                add si, start_source
-                mov cx, _width
-                mov bl, transparent_color
+                les  di, buffer_ptr
+                add  di, start_buffer
+                lds  si, _buffer_ptr
+                add  si, start_source
+                mov  cx, _width
+                mov  bl, transparent_color
                 cld
             @copy_loop:
                 lodsb
-                cmp al, bl
-                je @skip_pixel
-                mov es:[di], al
+                cmp  al, bl
+                je   @skip_pixel
+                mov  es:[di], al
             @skip_pixel:
-                inc di
+                inc  di
                 loop @copy_loop
-                pop ds
+                pop  ds
             end;
         end
         else
         begin
             asm
                 push ds
-                les di, buffer_ptr
-                add di, start_buffer
-                lds si, _buffer_ptr
-                add si, start_source
-                mov cx, _width
+                les  di, buffer_ptr
+                add  di, start_buffer
+                lds  si, _buffer_ptr
+                add  si, start_source
+                mov  cx, _width
                 cld
-                rep movsb
-                pop ds
+                rep  movsb
+                pop  ds
             end;
         end;
         start_source := start_source + jump_source;
