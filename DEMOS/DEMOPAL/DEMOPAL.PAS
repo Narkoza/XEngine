@@ -8,52 +8,36 @@ var
 BEGIN
    clrscr;
    xSetVGAMode;
-   xLoadColorPalette;
 
    { umieszczenie 64 odcieni koloru siwego we wzorcach koloru 0 - 63 }
-   port[$3c8] := 0;          { zapis rozpoczynamy od wzorca koloru o numerze 0 }
-
    for licznik := 0 to 63 do
    begin
-      port[$3c9] := licznik;
-      port[$3c9] := licznik;
-      port[$3c9] := licznik;
+      xSetColor(licznik, licznik, licznik, licznik);
    end; {koniec petli for}
 
    { umieszczenie 64 odcieni koloru czerwonego we wzorcach koloru 64 - 127 }
-   port[$3c8] := 64;         { zapis rozpoczynamy od wzorca koloru o numerze 64 }
-
    for licznik := 0 to 63 do
    begin
-      port[$3c9] := licznik;
-      port[$3c9] := 0;
-      port[$3c9] := 0;
+      xSetColor(64 + licznik, licznik, 0, 0);
    end; {koniec petli for}
 
    { umieszczenie 64 odcieni koloru zielonego we wzorcach koloru 128 - 191 }
-   port[$3c8] := 128;       { zapis rozpoczynamy od wzorca koloru o numerze 128 }
-
    for licznik := 0 to 63 do
    begin
-      port[$3c9] := 0;
-      port[$3c9] := licznik;
-      port[$3c9] := 0;
+      xSetColor(128 + licznik, 0, licznik, 0);
    end; {koniec petli for}
 
    { umieszczenie 64 odcieni koloru niebieskiego we wzorcach koloru 192 - 255 }
-   port[$3c8] := 192;       { zapis rozpoczynamy od wzorca koloru o numerze 192 }
-
    for licznik := 0 to 63 do
    begin
-      port[$3c9] := 0;
-      port[$3c9] := 0;
-      port[$3c9] := licznik;
+      xSetColor(192 + licznik, 0, 0, licznik);
    end; {koniec petli for}
 
    for licznik := 0 to 255 do
    begin
-      xDrawLineVert(licznik, 0, 199, licznik);
+      xDrawLineVert(Ptr(VGA_SEGMENT, 0), licznik, 0, 199, licznik);
    end;
 
    readln;
+   xSetTxtMode;
 END.
