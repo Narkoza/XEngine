@@ -83,8 +83,8 @@ procedure xGetPaletteVGA(var pal : VGAPalette);                                 
 procedure xSetPaletteVGA(pal : VGAPalette);                                                             { Zapisz palete VGA }
 procedure xLoadPaletteBMP(filename : string);                                                          { Pobierz palete BMP }
 procedure xLoadBitmapPalPkg(package_name, internal_name : string);                            { Pobierz palete BMP z paczki }
-procedure xSavePalFile(filename : string; pal : VGAPalette);                                       { Zapisz palete do pliku }
-procedure xLoadPalFile(filename : string; pal : VGAPalette);                                       { Wczytaj palete z pliku }
+procedure xSavePalFile(filename : string; var pal : VGAPalette);                                   { Zapisz palete do pliku }
+procedure xLoadPalFile(filename : string; var pal : VGAPalette);                                   { Wczytaj palete z pliku }
 procedure xGetColor(color_nr : byte; var color : TPalette);                                        { Pobierz wzorzec koloru }
 procedure xLoadBitmap(var image : TImage; filename : string);                                             { Wczytaj bitmape }
 procedure xLoadBitmapPkg(package_name, internal_name : string; var image : TImage);              { Wczytaj bitmape z paczki }
@@ -281,7 +281,7 @@ end;
 
 (***********************************************************)
 
-procedure xSavePalFile(filename : string; pal : VGAPalette);
+procedure xSavePalFile(filename : string; var pal : VGAPalette);
 var
     fd : file of VGAPalette;
 begin
@@ -293,7 +293,7 @@ end;
 
 (***********************************************************)
 
-procedure xLoadPalFile(filename : string; pal : VGAPalette);
+procedure xLoadPalFile(filename : string; var pal : VGAPalette);
 var
     fd : file of VGAPalette;
 begin
